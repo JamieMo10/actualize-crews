@@ -3,8 +3,9 @@
 (function () {
   'use strict';
   var CFG = window.CREWS_CONFIG || {};
-  var AREAS = [['money', 'Money'], ['career', 'Career'], ['health', 'Health'], ['fun', 'Fun'], ['environment', 'Environment'],
-    ['community', 'Community'], ['family', 'Family'], ['partner', 'Partner'], ['growth', 'Growth']];
+  // Keys stay as stored; only the names men see changed (environment is Home, community is Friends, partner is Love life).
+  var AREAS = [['money', 'Money'], ['career', 'Career'], ['health', 'Health'], ['fun', 'Fun'], ['environment', 'Home'],
+    ['community', 'Friends'], ['family', 'Family'], ['partner', 'Love life'], ['growth', 'Growth']];
   var NUM = ['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve'];
   var H3 = 3 * 3600e3, DAY = 24 * 3600e3;
   var $ = function (id) { return document.getElementById(id); };
@@ -692,6 +693,10 @@
     fig(r.closed, null, 'Stayed to the close');
     fig(r.commitments, null, 'Commitments');
     if (r.kept + r.not_yet > 0) fig(r.kept, ' of ' + (r.kept + r.not_yet), 'Kept, of those asked');
+    // How useful the night was: only ever an average, and only once three men have rated it.
+    var u = r.useful || { count: 0 };
+    if (u.average != null) fig(Number(u.average).toFixed(1), ' of 5', 'How useful, on average');
+    else if (u.count) fig(u.count, null, 'Rated how useful. The average shows at three.');
     var nextUp = crew.dinners.filter(function (x) { return x.n > d.n; }).sort(function (a, b) { return a.n - b.n; })[0];
     $('keptNote').textContent = r.commitments && !(r.kept + r.not_yet) ? (nextUp ? 'Commitments come back at dinner ' + nextUp.n + ', where each man says if he kept his.' : 'Each man says if he kept his commitment at the next dinner.') : '';
     // the wheel, against the dinner before when there is one
@@ -894,7 +899,8 @@
         });
         box.appendChild(el('div', { class: 'card' },
           el('header', null, el('h3', { text: c.crew }), el('span', { class: 'tag', text: plural(Number(c.men), 'man', 'men') })), mini,
-          el('p', { class: 'small', text: !c.dinners_held ? 'No dinner held yet.' : c.last_dinner_average == null ? 'Last dinner average shows at three answers.' : 'Last dinner averaged ' + Number(c.last_dinner_average).toFixed(1) + ' out of 5.' }),
+          el('p', { class: 'small', text: !c.dinners_held ? 'No dinner held yet.' : (c.last_dinner_average == null ? 'Last dinner average shows at three answers.' : 'Last dinner averaged ' + Number(c.last_dinner_average).toFixed(1) + ' out of 5.') +
+            (c.last_dinner_useful == null ? '' : ' How useful: ' + Number(c.last_dinner_useful).toFixed(1) + ' out of 5.') }),
           asks.length ? el('p', { text: 'Top asks: ' + asks.map(function (a) { return a.theme + ' (' + a.asking + ')'; }).join(', ') }) : null));
       });
       var themes = {};

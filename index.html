@@ -128,6 +128,8 @@ textarea.field{min-height:124px;line-height:1.5;resize:none}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01s!important;animation-delay:0s!important;animation-iteration-count:1!important;transition-duration:.01s!important}}
 .chips.stack{grid-template-columns:1fr}
+.chips.five{grid-template-columns:repeat(5,minmax(0,1fr))}
+.chips.five .chip{font-family:var(--mono);font-size:15px;letter-spacing:0}
 .chips.stack .chip{min-height:48px;padding:0 14px;text-align:left;font-size:12.5px;letter-spacing:.02em;text-transform:none}
 .names{margin-top:10px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .names .chip{font-size:13px;letter-spacing:.02em;text-transform:none}
@@ -184,6 +186,7 @@ textarea.field{min-height:124px;line-height:1.5;resize:none}
       <div><b>You</b><span>Everything you answer, on the phone you pick</span></div>
       <div><b id="helloAnchor">Your anchor</b><span>That you came, whether you did the weekly, your commitments, and when you were last on Circle. Your scores only if you share them.</span></div>
       <div><b>Your crew</b><span>Averages only, once three answer</span></div>
+      <div><b>Actualize</b><span>Counts and crew averages, used to plan city events around what men need. Your own answers only if you share them.</span></div>
     </div>
     <div class="grow"></div>
     <span class="label" style="margin-top:22px">Is this your own phone?</span>
@@ -218,6 +221,7 @@ textarea.field{min-height:124px;line-height:1.5;resize:none}
       <div><b>Your scores</b><span>Yours. At the close you choose who else sees them.</span></div>
       <div><b id="welcomeAnchor">Your anchor</b><span>Sees that you came, and your commitment</span></div>
       <div><b>Your crew</b><span>Averages only, once three answer</span></div>
+      <div><b>Actualize</b><span>Counts and crew averages, used to plan city events around what men need. Your own answers only if you share them.</span></div>
     </div>
     <div class="grow"></div>
     <div id="whoBox" hidden>
@@ -242,12 +246,13 @@ textarea.field{min-height:124px;line-height:1.5;resize:none}
 
   <section class="screen" id="s-problem" aria-labelledby="h-problem">
     <div class="progress"><span>Arriving · 2 of 2</span><span class="bars" aria-hidden="true"><i class="on"></i><i class="on"></i></span></div>
-    <h2 id="h-problem" tabindex="-1"><label for="problem">What did you bring tonight?</label></h2>
-    <p class="body">A line or two is plenty. You'll talk it through at the table.</p>
-    <textarea class="field" id="problem" rows="4" maxlength="500"></textarea>
-    <span class="label" id="areaLabel" style="margin-top:26px">Where does it sit?</span>
-    <p class="body" id="areaHint" style="margin-top:6px"></p>
+    <h2 id="h-problem" tabindex="-1">What problem did you bring tonight?</h2>
+    <p class="body">You'll talk it through at the table.</p>
+    <span class="label" id="areaLabel" style="margin-top:24px">Which area is it in?</span>
     <div class="chips" id="areaChips" role="group" aria-labelledby="areaLabel"></div>
+    <label class="label" for="problem" style="margin-top:24px">In a few words · optional</label>
+    <textarea class="field" id="problem" rows="3" maxlength="500" aria-describedby="problemNote" style="min-height:96px"></textarea>
+    <p class="small" id="problemNote" style="margin:6px 0 0">Only you see your words, unless you share them at the close.</p>
     <div class="grow"></div>
     <button class="go" id="sendArrive" type="button" disabled>Send. Phone away.</button>
     <p class="status" id="arriveStatus" role="status"></p>
@@ -278,6 +283,9 @@ textarea.field{min-height:124px;line-height:1.5;resize:none}
     <div class="chips when" id="whenChips" role="group" aria-labelledby="whenLabel"></div>
     <label class="label" for="offer" style="margin-top:16px">One thing you could help a crew mate with · optional</label>
     <input class="field" id="offer" type="text" maxlength="300" enterkeyhint="done">
+    <span class="label" id="usefulLabel" style="margin-top:20px">How useful was tonight?</span>
+    <div class="chips five" id="usefulChips" role="group" aria-labelledby="usefulLabel" aria-describedby="usefulNote"></div>
+    <p class="small" id="usefulNote" style="margin:6px 0 0">1 is not at all, 5 is very. Only ever shown as an average.</p>
     <span id="shareLabel" style="margin-top:20px;font-size:13px;font-weight:700;line-height:1.4;color:var(--cream)">Who else sees your scores and what you brought?</span>
     <p class="small" style="margin:4px 0 0" id="shareNote">Your anchor sees that you came and your commitment, so he can follow up. Your crew only sees averages. Nobody else is a fine answer.</p>
     <div class="chips stack" id="shareChips" role="group" aria-labelledby="shareLabel"></div>
@@ -331,6 +339,6 @@ textarea.field{min-height:124px;line-height:1.5;resize:none}
   </section>
 </div>
 <script src="config.js"></script>
-<script src="checkin.js?v=3"></script>
+<script src="checkin.js?v=4"></script>
 </body>
 </html>

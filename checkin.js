@@ -8,8 +8,8 @@
   var CFG = window.CREWS_CONFIG || {};
   var AREAS = [
     ['money', 'Money', 'MON'], ['career', 'Career', 'CAR'], ['health', 'Health', 'HEA'],
-    ['fun', 'Fun', 'FUN'], ['environment', 'Environment', 'ENV'], ['community', 'Community', 'COM'],
-    ['family', 'Family', 'FAM'], ['partner', 'Partner', 'PAR'], ['growth', 'Growth', 'GRO']
+    ['fun', 'Fun', 'FUN'], ['environment', 'Home', 'HOME'], ['community', 'Friends', 'FRND'],
+    ['family', 'Family', 'FAM'], ['partner', 'Love life', 'LOVE'], ['growth', 'Growth', 'GRO']
   ];
   var $ = function (id) { return document.getElementById(id); };
 
@@ -75,7 +75,7 @@
   function nextDinnerName() { return ctx.dinner ? 'dinner ' + (ctx.dinner.n + 1) : 'the next dinner'; }
 
   // ---- answers in progress, kept on this phone only until they're in ----
-  function blank() { return { scores: {}, problem: '', area: '', commitment: '', by_when: '', offer: '', share: '', arrive: null, close: null }; }
+  function blank() { return { scores: {}, problem: '', area: '', commitment: '', by_when: '', offer: '', share: '', useful: '', arrive: null, close: null }; }
   function storeKey() { return 'ac-checkin:' + (ctx.dinner ? ctx.dinner.key : 'none') + ':' + (ctx.mode === 'link' ? 'me' : ctx.person); }
   function load() {
     try { var s = JSON.parse(localStorage.getItem(storeKey()) || 'null'); if (s && s.scores) return s; } catch (e) {}
@@ -333,10 +333,8 @@
   // ---- problem screen ----
   var problemEl = $('problem');
   problemEl.addEventListener('input', function () { st.problem = problemEl.value; save(); checkArrive(); });
+  // Nothing is picked for him: the area is his call, and the words are optional.
   function buildChips() {
-    var low = lowest();
-    if (!st.area && low) st.area = low.key;
-    $('areaHint').textContent = low ? 'Your lowest tonight is ' + low.label + '. Is it there?' : '';
     var box = $('areaChips'); box.textContent = '';
     AREAS.forEach(function (a) {
       var c = document.createElement('button'); c.type = 'button'; c.className = 'chip'; c.textContent = a[1];
@@ -346,7 +344,7 @@
     });
     checkArrive();
   }
-  function checkArrive() { $('sendArrive').disabled = !(st.problem.trim() && st.area && setCount() === AREAS.length); }
+  function checkArrive() { $('sendArrive').disabled = !(st.area && setCount() === AREAS.length); }
   $('sendArrive').addEventListener('click', function () {
     if ($('sendArrive').disabled) return;
     st.arrive = { status: 'sending' }; save();
@@ -357,7 +355,8 @@
   // ---- sending ----
   function payload(stage) {
     if (stage === 'arrive') return { scores: st.scores, problem: st.problem.trim(), area: st.area };
-    return { commitment: st.commitment.trim(), by_when: st.by_when, offer: st.offer.trim(), share: st.share };
+    return { commitment: st.commitment.trim(), by_when: st.by_when, offer: st.offer.trim(), share: st.share,
+             useful: st.useful ? Number(st.useful) : null };
   }
   var seq = { arrive: 0, close: 0 };
   function sendStage(stage) {
@@ -433,20 +432,24 @@
   function drawClosePickers() {
     var whens = ['This week', 'Within two weeks', 'Before ' + nextDinnerName()].map(function (w) { return [w, w]; });
     buildPicker('whenChips', whens, st.by_when, function (v) { st.by_when = v; save(); drawClosePickers(); });
+    buildPicker('usefulChips', ['1', '2', '3', '4', '5'].map(function (n) { return [n, n]; }), st.useful,
+      function (v) { st.useful = v; save(); drawClosePickers(); });
     buildPicker('shareChips', shares(), st.share, function (v) { st.share = v; save(); drawClosePickers(); });
     checkClose();
   }
-  function checkClose() { $('sendClose').disabled = !(st.commitment.trim() && st.by_when && st.share); }
+  function checkClose() { $('sendClose').disabled = !(st.commitment.trim() && st.by_when && st.useful && st.share); }
   function openClose() {
     paint(null);
     $('closeName').textContent = ctx.first ? ', ' + ctx.first : '';
-    var hasRecap = !!(st.problem && st.problem.trim());
+    var words = (st.problem || '').trim(), area = labelOf(st.area);
+    var hasRecap = !!(words || area);
     $('recap').hidden = !hasRecap;
     if (hasRecap) {
       var a = average();
       $('recapLabel').textContent = a === null ? 'You brought' : 'You arrived at ' + a.toFixed(1) + ' and brought';
-      $('recapProblem').textContent = st.problem.trim();
-      $('recapArea').textContent = labelOf(st.area);
+      $('recapProblem').textContent = words || 'Something about ' + area.toLowerCase();
+      $('recapArea').textContent = words ? area : '';
+      $('recapArea').hidden = !(words && area);
     }
     $('commitLabel').textContent = 'What will you do about it before ' + nextDinnerName() + '?';
     $('shareNote').textContent = (ctx.anchor || 'Your anchor') + ' sees that you came and your commitment, so he can follow up. Your crew only sees averages. Nobody else is a fine answer.';
