@@ -97,6 +97,8 @@ create table if not exists public.checkins (
   updated_at   timestamptz not null default now(),
   primary key (dinner_key, person_id)
 );
+-- At the close each man rates how useful the night was, 1 to 5. Only ever shown as an average of three or more.
+alter table public.checkins add column if not exists useful smallint check (useful between 1 and 5);
 
 create table if not exists public.pulses (
   week       date not null check (extract(isodow from week) = 1),   -- the Monday of the week
@@ -212,11 +214,15 @@ begin
           arrived_at = coalesce(c.arrived_at, excluded.arrived_at), via = excluded.via, updated_at = now();
   elsif p_stage = 'close' then
     if choice not in ('none', 'anchor', 'city') then choice := 'none'; end if;
-    insert into public.checkins as c (dinner_key, person_id, commitment, by_when, offer, share, closed_at, via, updated_at)
+    if coalesce(trim(p ->> 'useful'), '') !~ '^[1-5]?$' then
+      raise exception 'how useful tonight was must be 1 to 5' using errcode = '22023';
+    end if;
+    insert into public.checkins as c (dinner_key, person_id, commitment, by_when, offer, share, useful, closed_at, via, updated_at)
     values (p_dinner, p_person, left(nullif(trim(p ->> 'commitment'), ''), 500), left(nullif(trim(p ->> 'by_when'), ''), 60),
-            left(nullif(trim(p ->> 'offer'), ''), 300), choice, now(), p_via, now())
+            left(nullif(trim(p ->> 'offer'), ''), 300), choice, nullif(trim(p ->> 'useful'), '')::smallint, now(), p_via, now())
     on conflict (dinner_key, person_id) do update
       set commitment = excluded.commitment, by_when = excluded.by_when, offer = excluded.offer, share = excluded.share,
+          useful = coalesce(excluded.useful, c.useful),
           closed_at = coalesce(c.closed_at, excluded.closed_at), via = excluded.via, updated_at = now();
   else
     raise exception 'unknown stage' using errcode = '22023';
@@ -633,6 +639,8 @@ begin
                         from public.checkins c join public.people p on p.id = c.person_id
                         where c.dinner_key = d.key and c.commitment is not null), '[]'::jsonb),
     'averages', case when n >= 3 then avgs end,
+    'useful', (select jsonb_build_object('count', count(*), 'average', case when count(*) >= 3 then round(avg(c.useful), 1) end)
+               from public.checkins c where c.dinner_key = d.key and c.useful is not null),
     'status', coalesce((select jsonb_agg(jsonb_build_object('id', p.id, 'first_name', p.first_name,
                           'arrived', c.arrived_at is not null, 'closed', c.closed_at is not null) order by p.first_name)
                         from public.people p left join public.checkins c on c.person_id = p.id and c.dinner_key = d.key
@@ -727,6 +735,12 @@ begin
               where k.dinner_key = (select d.key from public.dinners d where d.crew_id = c.id and d.ends_at < now()
                                     order by d.ends_at desc limit 1)
                 and k.arrived_at is not null and k.scores <> '{}'::jsonb) x),
+      'last_dinner_useful', (
+        select case when count(*) >= 3 then round(avg(k.useful), 1) end
+        from public.checkins k
+        where k.dinner_key = (select d.key from public.dinners d where d.crew_id = c.id and d.ends_at < now()
+                              order by d.ends_at desc limit 1)
+          and k.useful is not null),
       'asks', (select coalesce(jsonb_agg(jsonb_build_object(
                  'theme', t ->> 'name',
                  'asking', coalesce((t ->> 'asking')::int, 0),
@@ -791,7 +805,8 @@ begin
   on conflict (dinner_key, person_id) do update set scores = excluded.scores, problem = excluded.problem,
     problem_area = excluded.problem_area, commitment = excluded.commitment, by_when = excluded.by_when,
     offer = excluded.offer, share = excluded.share, kept = excluded.kept, kept_at = excluded.kept_at,
-    arrived_at = excluded.arrived_at, closed_at = excluded.closed_at, via = excluded.via, updated_at = excluded.updated_at;
+    arrived_at = excluded.arrived_at, closed_at = excluded.closed_at, via = excluded.via, updated_at = excluded.updated_at,
+    useful = excluded.useful;
   insert into public.pulses select * from jsonb_populate_recordset(null::public.pulses, doc -> 'pulses')
   on conflict (week, person_id) do update set scores = excluded.scores, updated_at = excluded.updated_at;
   insert into public.crew_profiles select * from jsonb_populate_recordset(null::public.crew_profiles, doc -> 'crew_profiles')
