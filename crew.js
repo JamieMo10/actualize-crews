@@ -332,7 +332,7 @@
       box.appendChild(icon('link'));
       box.appendChild(el('div', null,
         el('b', { text: none.length === list.length ? 'Nobody has a link yet. ' : plural(none.length, 'man needs his link. ', 'men need their link. ') }),
-        'Each man gets his own, sent to him directly. It only sends his answers and never shows them back.',
+        'Each man gets his own, sent to him directly. On his own phone it opens his space; anywhere else it only sends answers.',
         el('p', { class: 'small', style: 'margin-top:6px', text: 'Not yet: ' + joinNames(none.map(function (m) { return m.first_name; })) + '.' }),
         el('div', { class: 'acts' }, btn('Make ' + plural(none.length, 'link', 'links'), 'link', function () { makeLinks(none.map(function (m) { return m.id; }), []); }, null, 'makeLinks'))));
     } else if (unused.length) {
@@ -345,8 +345,8 @@
     }
   }
   function message(l) {
-    return 'Hi ' + l.first_name + ', here\'s your private check-in link for our Breaking Bread dinners: ' + ROOT + '#k=' + l.key +
-      '\nIt only sends your answers and never shows them back. Keep it to yourself, since anyone with it could answer as you.';
+    return 'Hi ' + l.first_name + ', here\'s your own link for our Breaking Bread dinners: ' + ROOT + '#k=' + l.key +
+      '\nOpen it on your phone and tap "Yes, remember me". It becomes your space: your check-ins next to the crew\'s averages, only on that phone. Keep it to yourself, since anyone with it could answer as you.';
   }
   function makeLinks(ids, replacing) {
     if (replacing.length && !confirm('This switches off the current link for ' + joinNames(replacing) + '. Make a new one?')) return;
