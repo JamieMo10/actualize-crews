@@ -102,7 +102,7 @@
     $('noteNext').hidden = !next; $('noteNext').onclick = next || null;
     $('noteVs').hidden = true; $('noteVs').textContent = '';
     $('noteHome').hidden = !(ctx.mode === 'link' && ctx.phone === 'this');
-    $('noteRemember').hidden = !(ctx.mode === 'link' && ctx.phone === 'none');
+    $('noteRemember').hidden = !(ctx.mode === 'link' && ctx.phone === 'none' && ctx.open);
     show('note');
   }
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined && text !== null) e.textContent = text; return e; }
