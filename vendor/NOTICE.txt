@@ -1,0 +1,2 @@
+supabase.js: @supabase/supabase-js 2.119.2, MIT licence, https://github.com/supabase/supabase-js
+qrcode.js: qrcode-generator 2.0.4 by Kazuhiko Arase, MIT licence, https://github.com/kazuhikoarase/qrcode-generator
