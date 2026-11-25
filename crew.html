@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en-CA">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://*.supabase.co wss://*.supabase.co http://127.0.0.1:*; img-src 'self' data:; base-uri 'none'; form-action 'none';">
+<meta name="theme-color" content="#121212">
+<title>Actualize crews</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23121212'/%3E%3Crect x='3' y='7' width='10' height='2' fill='%23C41010'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#121212;--panel:#1A1A1A;--line:#2E2E2E;--line2:#3A3A3A;
+  --cream:#F8F2E8;--white:#FFFFFF;--soft:#D6D0C6;--muted:#B5B0A8;--faint:#9A958D;
+  --red:#C41010;--deep:#990000;
+  --sans:Montserrat,"Helvetica Neue",Arial,sans-serif;--mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--cream);font-family:var(--sans);-webkit-text-size-adjust:100%}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--cream);outline-offset:3px}
+[hidden]{display:none!important}
+.wrap{max-width:780px;margin:0 auto;padding:calc(32px + env(safe-area-inset-top)) 20px calc(40px + env(safe-area-inset-bottom))}
+.kicker{display:flex;align-items:center;gap:10px;font-size:10px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+.kicker::before{content:"";width:24px;height:2px;background:var(--red);flex:none}
+h1,h2,h3{margin:0;color:var(--white);letter-spacing:-.03em;text-wrap:balance}
+h1{margin-top:18px;font-size:32px;line-height:1;font-weight:800;text-transform:uppercase}
+h2{margin-top:34px;font-size:13px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+h3{font-size:17px;font-weight:700;letter-spacing:-.01em}
+.meta{margin:10px 0 0;font-family:var(--mono);font-size:12px;color:var(--muted)}
+.body{margin:8px 0 0;font-size:14.5px;line-height:1.55;color:var(--soft)}
+.small{font-size:13px;line-height:1.5;color:var(--faint)}
+.label{display:block;margin-top:16px;font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.field{margin-top:8px;width:100%;min-height:48px;padding:11px 13px;background:var(--panel);border:1px solid var(--line2);border-radius:0;color:var(--cream);font-size:16px}
+.field:focus{border-color:var(--cream);outline:none}
+.go{margin-top:14px;min-height:50px;padding:0 20px;border:1px solid var(--red);border-radius:0;background:var(--deep);color:var(--cream);font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}
+.go:disabled{cursor:not-allowed;background:#2A1414;border-color:#4A2424;color:var(--faint)}
+.ghost{min-height:40px;padding:0 14px;border:1px solid var(--line2);border-radius:0;background:transparent;color:var(--cream);font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
+.ghost.sm{min-height:34px;padding:0 10px;font-size:10px}
+.textlink{border:0;background:none;padding:0;color:var(--muted);font-size:13px;text-decoration:underline;text-underline-offset:3px}
+.status{margin:10px 0 0;min-height:18px;font-size:13px;line-height:1.45;color:var(--soft)}
+.status.warn{color:#F0C9A0}
+.card{margin-top:12px;padding:16px;background:var(--panel);border:1px solid var(--line)}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.row.between{justify-content:space-between}
+.tag{display:inline-block;padding:3px 8px;border:1px solid #6A6A6A;font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--soft)}
+.tag.on{border-color:var(--red);color:var(--white)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:12px}
+.stat{padding:12px;border:1px solid var(--line)}
+.stat b{display:block;font-family:var(--mono);font-weight:400;font-size:26px;color:var(--white)}
+.stat span{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.bars{margin-top:12px;display:grid;grid-template-columns:110px minmax(0,1fr) 36px;gap:8px 10px;align-items:center}
+.bars .bl{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.bars .bt{height:8px;background:var(--line)}
+.bars .bf{height:8px;background:var(--cream)}
+.bars .bf.low{background:var(--red)}
+.bars .bv{font-family:var(--mono);font-size:13px;text-align:right}
+.people{margin-top:10px;display:flex;flex-wrap:wrap;gap:6px}
+.person{padding:6px 10px;border:1px solid var(--line2);font-size:13px}
+.person.yes{border-color:var(--cream);color:var(--white)}
+.person em{font-style:normal;font-family:var(--mono);font-size:11px;color:var(--muted)}
+.list{margin-top:8px;border-top:1px solid var(--line)}
+.item{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;padding:12px 0;border-bottom:1px solid var(--line)}
+.item .who{display:flex;align-items:center;gap:10px;min-width:0}
+.item .who b{font-size:15px}
+.item .who span{font-size:12.5px;color:var(--faint)}
+.answer{margin-top:10px;padding:14px;border:1px solid var(--line)}
+.answer .q{margin-top:8px;font-size:14px;line-height:1.45;color:var(--cream);overflow-wrap:anywhere}
+.answer .q i{display:block;font-style:normal;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.msg{margin-top:10px;padding:12px;border:1px solid var(--line2);background:#151515}
+.msg pre{margin:0;white-space:pre-wrap;word-break:break-word;font-family:var(--sans);font-size:13.5px;line-height:1.5;color:var(--cream)}
+table{width:100%;margin-top:12px;border-collapse:collapse;font-size:13px}
+th,td{padding:9px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+td.n{font-family:var(--mono);text-align:right}
+.scroll{overflow-x:auto}
+.modal{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.72)}
+.modal .box{width:100%;max-width:420px;max-height:100%;overflow:auto;padding:22px;background:var(--panel);border:1px solid var(--line2)}
+.qr{margin:16px auto 0;width:240px;max-width:100%;background:#fff;padding:10px}
+.qr svg{display:block;width:100%;height:auto}
+.url{margin-top:12px;font-family:var(--mono);font-size:11px;line-height:1.5;color:var(--muted);word-break:break-all}
+.three{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.check{display:flex;align-items:center;gap:8px;font-size:14px}
+.check input{width:18px;height:18px;accent-color:#C41010}
+@media print{
+  body{background:#fff;color:#000}
+  .wrap{display:none}
+  .modal{position:static;background:none;padding:0}
+  .modal .box{border:0;background:#fff;color:#000;max-width:none}
+  .modal .noprint{display:none!important}
+  .modal h3{color:#000;font-size:28px}
+  .qr{width:360px}
+}
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <div class="kicker" id="kicker">Actualize crews</div>
+
+  <section id="v-loading"><p class="meta">Opening…</p></section>
+
+  <section id="v-signin" hidden>
+    <h1>Sign in</h1>
+    <p class="body">For anchors and city leads. Men check in with their own link or the table code, and never sign in here.</p>
+    <div id="step-email">
+      <label class="label" for="email">Your email</label>
+      <input class="field" id="email" type="email" autocomplete="email" inputmode="email" enterkeyhint="send">
+      <button class="go" id="sendCode" type="button">Email me a code</button>
+    </div>
+    <div id="step-code" hidden>
+      <p class="body" id="codeSent"></p>
+      <label class="label" for="code">Code</label>
+      <input class="field" id="code" type="text" autocomplete="one-time-code" inputmode="numeric" maxlength="10" enterkeyhint="go">
+      <button class="go" id="verify" type="button">Sign in</button>
+      <p><button class="textlink" id="otherEmail" type="button">Use another email</button></p>
+    </div>
+    <p class="status" id="signinStatus" role="status"></p>
+  </section>
+
+  <section id="v-nobody" hidden>
+    <h1>Not set up</h1>
+    <p class="body">This email isn't set up as an anchor or city lead. Ask whoever runs your city to add you.</p>
+    <button class="ghost" data-signout type="button">Sign out</button>
+  </section>
+
+  <section id="v-anchor" hidden>
+    <h1 id="crewName"></h1>
+    <p class="meta"><span id="anchorMeta"></span> · <button class="textlink" data-signout type="button">Sign out</button></p>
+
+    <h2>Dinners</h2>
+    <div class="list" id="dinnerList"></div>
+
+    <div id="reportBox" hidden>
+      <h2 id="reportTitle"></h2>
+      <div class="stats" id="reportStats"></div>
+      <div id="reportAverages"></div>
+      <h3 style="margin-top:22px">Who's checked in</h3>
+      <div class="people" id="reportStatus"></div>
+      <h3 style="margin-top:22px">Shared with you</h3>
+      <p class="small">Only what each man chose to share with his anchor. Everyone else counts in the totals above.</p>
+      <div id="reportShared"></div>
+    </div>
+
+    <h2>The men</h2>
+    <p class="small">Each man's private link only sends answers. Making a new one switches off his old one.</p>
+    <div class="list" id="menList"></div>
+    <div class="row" style="margin-top:12px">
+      <button class="ghost" id="makeLinks" type="button">Make links for the ones ticked</button>
+    </div>
+    <div id="linkMessages"></div>
+    <div class="row" style="margin-top:18px">
+      <input class="field" id="newName" type="text" maxlength="40" placeholder="First name" style="max-width:220px;margin-top:0" autocomplete="off">
+      <button class="ghost" id="addMan" type="button">Add a man</button>
+    </div>
+    <p class="status" id="menStatus" role="status"></p>
+
+    <h2>Weekly check-in</h2>
+    <div id="pulseBox"></div>
+  </section>
+
+  <section id="v-city" hidden>
+    <h1 id="cityName"></h1>
+    <p class="meta"><span id="cityMeta"></span> · <button class="textlink" data-signout type="button">Sign out</button></p>
+    <h2>Crews</h2>
+    <p class="small">Counts only. Averages show where three or more men answered.</p>
+    <div class="scroll"><table id="cityTable"></table></div>
+    <h2>Shared with you</h2>
+    <p class="small">Only answers men chose to share with the city lead.</p>
+    <div id="cityShared"></div>
+  </section>
+</div>
+
+<div class="modal" id="qrModal" hidden role="dialog" aria-modal="true" aria-labelledby="qrTitle">
+  <div class="box">
+    <h3 id="qrTitle"></h3>
+    <p class="small" id="qrNote">Scan to check in. Works from three hours before the dinner until a day after.</p>
+    <div class="qr" id="qrImage"></div>
+    <p class="url noprint" id="qrUrl"></p>
+    <div class="row noprint" style="margin-top:12px">
+      <button class="ghost sm" id="qrCopy" type="button">Copy link</button>
+      <button class="ghost sm" id="qrPrint" type="button">Print card</button>
+      <button class="ghost sm" id="qrNew" type="button">New code</button>
+      <button class="ghost sm" id="qrClose" type="button">Close</button>
+    </div>
+    <p class="status noprint" id="qrStatus" role="status"></p>
+  </div>
+</div>
+
+<div class="modal" id="dateModal" hidden role="dialog" aria-modal="true" aria-labelledby="dateTitle">
+  <div class="box">
+    <h3 id="dateTitle"></h3>
+    <label class="label" for="dDate">Date</label>
+    <input class="field" id="dDate" type="date">
+    <div class="three">
+      <div><label class="label" for="dStart">Starts</label><input class="field" id="dStart" type="time" value="18:30"></div>
+      <div><label class="label" for="dEnd">Ends</label><input class="field" id="dEnd" type="time" value="20:30"></div>
+      <div><label class="label" for="dHost">Host</label><select class="field" id="dHost"></select></div>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button class="go" id="dSave" type="button" style="margin-top:0">Save</button>
+      <button class="ghost" id="dCancel" type="button">Cancel</button>
+    </div>
+    <p class="status" id="dStatus" role="status"></p>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script src="vendor/supabase.js"></script>
+<script src="vendor/qrcode.js"></script>
+<script src="crew.js"></script>
+</body>
+</html>
