@@ -10,7 +10,7 @@
   var $ = function (id) { return document.getElementById(id); };
   var areaName = function (k) { var f = AREAS.filter(function (a) { return a[0] === k; })[0]; return f ? f[1] : k; };
   var ROOT = new URL('./', location.href).href;
-  var me = null, crew = null, sel = null, profile = null, pulse = [], reports = {}, sent = [], liveTimer = null, qrDinner = null, dateDinner = null;
+  var me = null, crew = null, sel = null, profile = null, pulse = [], people = [], reports = {}, sent = [], liveTimer = null, qrDinner = null, dateDinner = null, manOpen = null;
 
   // ---------- building blocks ----------
   var NS = 'http://www.w3.org/2000/svg';
@@ -218,8 +218,9 @@
       .then(function (r) { return !r.error && r.data && r.data.length ? r.data[0].data : null; }, function () { return null; });
   }
   function loadAnchor(keep) {
-    return Promise.all([call('anchor_crew'), call('crew_pulse', { p_weeks: 13 }).catch(function () { return []; }), profile ? Promise.resolve(profile) : loadProfile()]).then(function (res) {
-      crew = res[0]; pulse = res[1] || []; profile = res[2];
+    return Promise.all([call('anchor_crew'), call('crew_pulse', { p_weeks: 13 }).catch(function () { return []; }), profile ? Promise.resolve(profile) : loadProfile(),
+      call('anchor_people').catch(function () { return []; })]).then(function (res) {
+      crew = res[0]; pulse = res[1] || []; profile = res[2]; people = res[3] || [];
       if (!crew) { views('nobody'); return; }
       if (!keep || !sel || !byKey(sel)) {
         var open = crew.dinners.filter(function (d) { return d.open; })[0];
@@ -240,8 +241,9 @@
     $('anchorMeta').textContent = 'Anchor · ' + me.first_name;
     $('crewName').textContent = crew.crew.name;
     $('lede').textContent = lede();
-    renderNext(); renderLastTime(); renderTodo(); renderMessages(); renderMen(); renderAsks();
-    renderDinners(); renderReport(); renderWeekly();
+    renderNext(); renderLastTime(); renderTodo(); renderMessages(); renderCare(); renderMen(); renderAsks();
+    renderDinners(); renderReport(); renderWeekly(); renderNudge();
+    if (manOpen) openMan(manOpen);
     startLive();
   }
   function lede() {
@@ -388,16 +390,202 @@
       var line = m.link_issued_at ? 'Link made ' + shortDay(m.link_issued_at) + (m.link_used_at ? ', used ' + shortDay(m.link_used_at) : ', not used yet') : 'No link yet';
       var hosting = crew.dinners.filter(function (d) { return d.host_id === m.id && stateOf(d) !== 'done'; }).map(function (d) { return d.n; });
       var tag = (m.role === 'anchor' ? 'Anchor' : '') + (hosting.length ? (m.role === 'anchor' ? ', hosts ' : 'Hosts ') + dinnersWord(hosting) : '');
+      var sc = scoreOf(pp(m.id));
       list.appendChild(el('li', null,
-        el('span', { class: 'av ' + cls, text: ini(m.first_name) }),
-        el('div', null, el('span', { class: 'nm', text: m.first_name }), el('span', { class: 'st', text: line }), tag ? el('span', { class: 'st note', text: tag }) : null),
+        el('button', { class: 'who', type: 'button', 'aria-label': m.first_name + ', open his page', onclick: function () { openMan(m.id); } },
+          el('span', { class: 'av ' + cls, text: ini(m.first_name) }),
+          el('div', null, el('span', { class: 'nm', text: m.first_name }), el('span', { class: 'st', text: line }), tag ? el('span', { class: 'st note', text: tag }) : null)),
         el('div', { class: 'end' },
           tag ? el('span', { class: 'tag', text: tag }) : null,
+          scoreChip(sc),
           el('div', { class: 'tools' },
             el('button', { class: 'btn ghost sm', type: 'button', onclick: function () { makeLinks([m.id], m.link_issued_at ? [m.first_name] : []); } }, m.link_issued_at ? 'New link' : 'Make link'),
             m.role === 'member' ? el('button', { class: 'btn ghost sm', type: 'button', onclick: function () { removeMan(m); } }, 'Take off') : null))));
     });
   }
+  // ---- the connection score: dinners, the weekly, commitments kept, Circle. Unknowns are left out, not held against him. ----
+  var WEIGHTS = { dinners: 40, weekly: 25, kept: 15, circle: 20 };
+  function pp(id) { return people.filter(function (x) { return x.id === id; })[0] || { id: id, dinners: [], weeks: [], commitments: [], shared: [] }; }
+  function monday(t) { var n = dayNum(t), dow = new Date(n * DAY).getUTCDay(); return n - ((dow + 6) % 7); }
+  function isoDay(n) { return new Date(n * DAY).toISOString().slice(0, 10); }
+  function noon(d) { return String(d).slice(0, 10) + 'T12:00:00Z'; }
+  function daysAgo(d) { return Math.max(0, dayNum(Date.now()) - dayNum(noon(d))); }
+  function agoText(days) { return days === 0 ? 'today' : days === 1 ? 'yesterday' : days < 21 ? days + ' days ago' : Math.round(days / 7) + ' weeks ago'; }
+  // The weeks a man is counted as checked in: his weekly answers, plus any week he checked in at a dinner.
+  function weeksDone(p) {
+    var did = (p.dinners || []).filter(function (x) { return x.arrived; }).map(function (x) {
+      var d = crew.dinners.filter(function (y) { return y.key === x.key; })[0];
+      return d && d.starts_at ? isoDay(monday(startOf(d))) : null;
+    }).filter(Boolean);
+    return did.concat((p.weeks || []).map(function (w) { return String(w).slice(0, 10); }));
+  }
+  function scoreOf(p) {
+    var parts = [], reasons = [];
+    var held = crew.dinners.filter(function (d) { var s = stateOf(d); return s === 'done' || s === 'after'; }).sort(function (a, b) { return startOf(a) - startOf(b); });
+    if (held.length) {
+      var came = held.filter(function (d) { var x = (p.dinners || []).filter(function (y) { return y.key === d.key; })[0]; return x && x.arrived; });
+      parts.push({ label: 'Dinners', got: came.length / held.length * WEIGHTS.dinners, max: WEIGHTS.dinners, text: came.length + ' of ' + held.length + ' held' });
+      var lastHeld = held[held.length - 1];
+      if (!came.some(function (d) { return d.key === lastHeld.key; })) reasons.push('Missed dinner ' + lastHeld.n);
+    }
+    if (p.link_issued_at) {
+      var thisMon = monday(Date.now()), firstMon = monday(p.link_issued_at), did = weeksDone(p);
+      var weeks = [];
+      if (did.indexOf(isoDay(thisMon)) >= 0) weeks.push(isoDay(thisMon));
+      for (var m = thisMon - 7; m >= firstMon && weeks.length < 4; m -= 7) weeks.push(isoDay(m));
+      if (weeks.length) {
+        var n = weeks.filter(function (w) { return did.indexOf(w) >= 0; }).length;
+        parts.push({ label: 'Weekly check-in', got: n / weeks.length * WEIGHTS.weekly, max: WEIGHTS.weekly, text: n + ' of the last ' + plural(weeks.length, 'week', 'weeks') });
+        var quiet = 0;
+        for (var i = 0; i < weeks.length; i++) { if (weeks[i] === isoDay(thisMon)) continue; if (did.indexOf(weeks[i]) >= 0) break; quiet++; }
+        if (quiet >= 2) reasons.push('No weekly check-in for ' + quiet + ' weeks');
+      }
+    }
+    var asked = (p.commitments || []).filter(function (c) { return c.kept === true || c.kept === false; });
+    if (asked.length) {
+      var kept = asked.filter(function (c) { return c.kept; }).length;
+      parts.push({ label: 'Commitments kept', got: kept / asked.length * WEIGHTS.kept, max: WEIGHTS.kept, text: kept + ' of ' + asked.length });
+      if (asked[asked.length - 1].kept === false) reasons.push('Commitment from dinner ' + asked[asked.length - 1].n + ' not kept yet');
+    }
+    if (p.circle_seen_on) {
+      var days = daysAgo(p.circle_seen_on);
+      parts.push({ label: 'On Circle', got: days <= 7 ? 20 : days <= 14 ? 14 : days <= 30 ? 7 : 0, max: WEIGHTS.circle, text: 'last seen ' + agoText(days) });
+      if (days > 21) reasons.push('Not on Circle for ' + agoText(days).replace(' ago', ''));
+    }
+    if (!parts.length) return { score: null, band: 'new', label: 'Not enough yet', parts: parts, reasons: reasons };
+    var got = 0, max = 0; parts.forEach(function (x) { got += x.got; max += x.max; });
+    var score = Math.round(got / max * 100), band = score >= 70 ? 'good' : score >= 40 ? 'watch' : 'drift';
+    return { score: score, band: band, label: { good: 'Connected', watch: 'Worth watching', drift: 'Drifting' }[band], parts: parts, reasons: reasons };
+  }
+  function scoreChip(sc) {
+    return el('span', { class: 'score ' + sc.band, title: sc.label }, el('i'), sc.score === null ? 'New' : String(sc.score));
+  }
+  // Who to check in with: lowest first, with the reason. Never a ranking of the whole crew.
+  function renderCare() {
+    var box = clear('careBox'), list = men().map(function (m) { return { m: m, p: pp(m.id), sc: scoreOf(pp(m.id)) }; });
+    var flagged = list.filter(function (x) { return x.sc.score !== null && x.sc.band !== 'good'; }).sort(function (a, b) { return a.sc.score - b.sc.score; });
+    var scored = list.filter(function (x) { return x.sc.score !== null; }).length;
+    var checked = people.map(function (p) { return p.circle_checked_at; }).filter(Boolean).sort().pop();
+    box.appendChild(el('div', { class: 'phead' }, el('h3', { text: 'Check in with' }),
+      el('button', { class: 'linkbtn', type: 'button', onclick: openCircle }, 'Update Circle')));
+    var sub = !scored ? 'Nobody to flag yet. Scores fill in from the dinners, the weekly check-in and Circle. Noting when each man was last on Circle starts them today.'
+      : !flagged.length && scored < list.length ? 'Nobody to flag. ' + scored + ' of ' + list.length + ' men have a score so far; the rest fill in from the dinners, the weekly check-in and Circle.'
+      : !flagged.length ? 'Everyone looks connected. Scores come from dinners, the weekly check-in, commitments and Circle.'
+      : 'Lowest first, with the reason. Only you see this.';
+    box.appendChild(el('p', { class: 'small', style: 'margin-top:4px', text: sub + (checked ? ' Circle last noted ' + agoText(daysAgo(checked)) + '.' : '') }));
+    if (!flagged.length) return;
+    var ul = el('ul', { class: 'care' });
+    flagged.forEach(function (x) {
+      ul.appendChild(el('li', null, el('button', { type: 'button', onclick: function () { openMan(x.m.id); } },
+        el('span', { class: 'av made', text: ini(x.m.first_name) }),
+        el('span', null, el('b', { text: x.m.first_name }), el('span', { class: 'why', text: x.sc.reasons.length ? x.sc.reasons.join('. ') + '.' : x.sc.label + '.' })),
+        scoreChip(x.sc))));
+    });
+    box.appendChild(ul);
+  }
+  // A page per man: his score and why, Circle, his link, his commitments, and what he chose to share.
+  function openMan(id) {
+    var m = person(id); if (!m) { manOpen = null; $('manModal').hidden = true; return; }
+    var fresh = $('manModal').hidden || manOpen !== id, keep = fresh ? 0 : $('manBox').scrollTop;
+    manOpen = id;
+    var p = pp(id), sc = scoreOf(p), box = clear('manBox');
+    var cls = m.link_used_at ? 'used' : m.link_issued_at ? 'made' : 'none';
+    box.appendChild(el('div', { class: 'mhead' }, el('span', { class: 'av ' + cls, text: ini(m.first_name) }),
+      el('div', null, el('h3', { id: 'manName', tabindex: '-1', text: m.first_name }), el('span', { class: 'small', text: (m.role === 'anchor' ? 'Anchor' : 'Crew') + (p.paired ? ' · his phone is set up' : '') }))));
+    box.appendChild(el('div', { class: 'bigscore' }, el('b', { text: sc.score === null ? '·' : String(sc.score) }), el('span', { text: sc.label })));
+    var parts = el('div', { class: 'parts' });
+    var have = sc.parts.map(function (x) { return x.label; });
+    sc.parts.forEach(function (x) {
+      parts.appendChild(el('div', { class: 'part' }, el('span', { text: x.label }), el('div', { class: 'track' }, el('i', { style: 'width:' + Math.round(x.got / x.max * 100) + '%' })), el('em', { text: x.text })));
+    });
+    [['Dinners', 'after his first dinner'], ['Weekly check-in', 'once his link is out'], ['Commitments kept', 'once he\'s asked about one'], ['On Circle', 'note it below']].forEach(function (x) {
+      if (have.indexOf(x[0]) < 0) parts.appendChild(el('div', { class: 'part none' }, el('span', { text: x[0] }), el('div'), el('em', { text: x[1] })));
+    });
+    box.appendChild(parts);
+    if (sc.reasons.length) box.appendChild(el('p', { class: 'small', style: 'margin-top:10px;color:var(--soft)', text: sc.reasons.join('. ') + '.' }));
+    // Circle
+    var circle = el('div', { class: 'msec' }, el('h4', { text: 'On Circle' }),
+      el('p', { class: 'small', style: 'margin-top:6px', text: p.circle_seen_on ? 'Last seen ' + agoText(daysAgo(p.circle_seen_on)) + ', ' + shortDay(noon(p.circle_seen_on)) + '. Noted ' + agoText(daysAgo(p.circle_checked_at)) + '.' : 'Not noted yet. Open his Circle profile and note when he was last on.' }));
+    circle.appendChild(circleForm(m, p, 'manStatus'));
+    box.appendChild(circle);
+    // his link
+    var linkLine = m.link_issued_at ? 'Made ' + shortDay(m.link_issued_at) + (m.link_used_at ? ', used ' + shortDay(m.link_used_at) : ', not used yet') + (p.paired ? '. Remembered on his phone.' : '.') : 'No link yet.';
+    box.appendChild(el('div', { class: 'msec' }, el('h4', { text: 'His link' }), el('p', { class: 'small', style: 'margin-top:6px', text: linkLine }),
+      el('div', { class: 'acts' }, btn(m.link_issued_at ? 'Make him a new link' : 'Make his link', 'link', function () { $('manModal').hidden = true; manOpen = null; go('home'); makeLinks([m.id], m.link_issued_at ? [m.first_name] : []); }, 'ghost sm'))));
+    // dinners and commitments
+    var dl = (p.dinners || []).filter(function (d) { var x = byKey(d.key); return x && (stateOf(x) === 'done' || x.open); });
+    var sec = el('div', { class: 'msec' }, el('h4', { text: 'Dinners and commitments' }));
+    if (!dl.length && !(p.commitments || []).length) sec.appendChild(el('p', { class: 'small', style: 'margin-top:6px', text: 'Nothing yet. This fills in after his first dinner.' }));
+    var ul = el('ul', { class: 'commits' });
+    dl.forEach(function (d) {
+      var c = (p.commitments || []).filter(function (x) { return x.dinner === d.key; })[0];
+      ul.appendChild(el('li', null, el('b', { text: 'Dinner ' + d.n }),
+        el('span', null, c ? c.commitment : d.arrived ? 'Came' + (d.closed ? ', stayed to the close' : '') : 'Didn\'t check in', c ? el('small', { text: (c.by_when || '') }) : null),
+        el('span', { class: 'tag' + (c && c.kept === false ? ' on' : ''), text: c ? (c.kept === true ? 'Kept' : c.kept === false ? 'Not yet' : 'Asked next dinner') : d.arrived ? 'In' : 'Missed' })));
+    });
+    sec.appendChild(ul);
+    box.appendChild(sec);
+    // what he chose to share
+    if ((p.shared || []).length) {
+      var sh = el('div', { class: 'msec' }, el('h4', { text: 'Shared with you' }));
+      var grid = el('div', { class: 'answers' });
+      p.shared.forEach(function (s) { grid.appendChild(answerCard({ first_name: 'Dinner ' + s.n, scores: s.scores, problem: s.problem, area: s.area, offer: s.offer }, s.share === 'city' ? 'With you and Actualize' : 'With you', true)); });
+      sh.appendChild(grid); box.appendChild(sh);
+    }
+    box.appendChild(el('div', { class: 'acts', style: 'margin-top:22px' }, btn('Close', null, function () { $('manModal').hidden = true; manOpen = null; }, 'sm', 'manClose')));
+    box.appendChild(el('p', { class: 'status', id: 'manStatus', role: 'status' }));
+    $('manModal').hidden = false;
+    // A fresh page starts at the top with his name; after a save it stays where Jamie was.
+    box.scrollTop = keep;
+    if (!$('manModal').contains(document.activeElement)) $('manName').focus({ preventScroll: true });
+  }
+  function circleForm(m, p, statusId) {
+    var input = el('input', { class: 'field', type: 'date', 'aria-label': 'When ' + m.first_name + ' was last on Circle', max: isoDay(dayNum(Date.now())) });
+    if (p.circle_seen_on) input.value = String(p.circle_seen_on).slice(0, 10);
+    var save = function (v) {
+      status(statusId, 'Saving…');
+      call('set_circle_seen', { p_person: m.id, p_seen_on: v || null }).then(function () { return loadAnchor(true); }).then(function () {
+        if (!$('circleModal').hidden) openCircle();
+        if ($(statusId)) status(statusId, m.first_name + ': noted.');
+      }, function (e) { if ($(statusId)) status(statusId, e.message, true); });
+    };
+    return el('div', { class: 'rowform' }, input,
+      el('button', { class: 'btn ghost sm', type: 'button', onclick: function () { save(input.value); } }, 'Save'),
+      el('button', { class: 'btn ghost sm', type: 'button', onclick: function () { input.value = isoDay(dayNum(Date.now())); save(input.value); } }, 'Today'));
+  }
+  function openCircle() {
+    var list = clear('circleList');
+    men().forEach(function (m) {
+      var p = pp(m.id);
+      list.appendChild(el('li', null,
+        el('div', null, el('b', { text: m.first_name }), el('span', { class: 'small', style: 'display:block', text: p.circle_seen_on ? 'Last seen ' + agoText(daysAgo(p.circle_seen_on)) : 'Not noted yet' })),
+        circleForm(m, p, 'circleStatus')));
+    });
+    status('circleStatus', '');
+    $('circleModal').hidden = false;
+  }
+  $('circleOpen').addEventListener('click', openCircle);
+  $('circleDone').addEventListener('click', function () { $('circleModal').hidden = true; });
+  // The weekly nudge, for the crew chat: who has done this week, and a message to send.
+  function renderNudge() {
+    var box = clear('nudgeBox'), list = men().filter(function (m) { return m.link_issued_at; });
+    var open = crew.dinners.some(function (d) { return d.open; });
+    box.hidden = !list.length || open; if (box.hidden) return;
+    var wk = isoDay(monday(Date.now()));
+    var done = list.filter(function (m) { return weeksDone(pp(m.id)).indexOf(wk) >= 0; });
+    var notYet = list.filter(function (m) { return done.indexOf(m) < 0; });
+    var dinnerWeek = crew.dinners.some(function (d) { return d.starts_at && isoDay(monday(startOf(d))) === wk && startOf(d) <= Date.now(); });
+    var text = 'Weekly check-in is open. Tap your own link from me, it takes a minute, and you\'ll see the crew\'s week next to yours.';
+    box.appendChild(el('div', { class: 'phead' }, el('h3', { text: 'This week: ' + done.length + ' of ' + list.length + ' checked in' })));
+    box.appendChild(el('p', { class: 'small', style: 'margin-top:4px', text: (dinnerWeek ? 'Dinner counts as the week for the men who came. ' : '') + (notYet.length ? 'Not yet: ' + joinNames(notYet.map(function (m) { return m.first_name; })) + '. A nudge in the crew chat helps. It never shows what anyone said.' : 'Everyone has checked in this week.') }));
+    if (!notYet.length) return;
+    box.appendChild(el('pre', { style: 'margin:12px 0 0;white-space:pre-wrap;font:14px/1.5 var(--sans);color:var(--soft)', text: text }));
+    box.appendChild(el('div', { class: 'acts' },
+      btn('WhatsApp', 'chat', function () { window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank', 'noopener'); }, 'ghost sm'),
+      btn('Copy message', 'copy', function () { copy(text, 'nudgeStatus'); }, 'ghost sm')));
+    box.appendChild(el('p', { class: 'status', id: 'nudgeStatus', role: 'status' }));
+  }
+
   $('editMen').addEventListener('click', function () {
     var on = !$('crewPanel').classList.contains('editing');
     $('crewPanel').classList.toggle('editing', on);
@@ -533,6 +721,12 @@
     var ps = clear('reportStatus');
     r.status.forEach(function (p) {
       ps.appendChild(el('b', { class: p.arrived ? 'in' : null }, el('i', { text: ini(p.first_name) }), p.first_name, p.closed ? el('em', { text: ' closed' }) : null));
+    });
+    var cm = clear('reportCommits');
+    if (!(r.commitments_list || []).length) cm.appendChild(el('li', { style: 'display:block' }, el('span', { class: 'small', text: empty ? 'Nothing yet.' : 'No commitments yet. They come in at the close.' })));
+    (r.commitments_list || []).forEach(function (c) {
+      cm.appendChild(el('li', null, el('b', { text: c.first_name }), el('span', null, c.commitment, el('small', { text: c.by_when || '' })),
+        el('span', { class: 'tag' + (c.kept === false ? ' on' : ''), text: c.kept === true ? 'Kept' : c.kept === false ? 'Not yet' : 'Asked next dinner' })));
     });
     var sh = clear('reportShared');
     if (!r.shared.length) sh.appendChild(el('p', { class: 'small', style: 'margin-top:12px', text: empty ? 'Nothing yet.' : 'Nobody has shared answers with you for this dinner yet.' }));
@@ -670,7 +864,7 @@
       $('dateModal').hidden = true; return loadAnchor(true);
     }, function (err) { status('dStatus', err.message, true); });
   });
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { $('qrModal').hidden = true; $('dateModal').hidden = true; } });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { $('qrModal').hidden = true; $('dateModal').hidden = true; $('manModal').hidden = true; $('circleModal').hidden = true; manOpen = null; } });
 
   // ================= Actualize =================
   function loadCity() {

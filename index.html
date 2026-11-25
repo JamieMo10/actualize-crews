@@ -8,6 +8,12 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://*.supabase.co http://127.0.0.1:*; img-src 'self' data:; base-uri 'none'; form-action 'none';">
 <meta name="theme-color" content="#121212">
 <title>Breaking Bread check-in</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Crew">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23121212'/%3E%3Crect x='3' y='7' width='10' height='2' fill='%23C41010'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -129,6 +135,36 @@ textarea.field{min-height:124px;line-height:1.5;resize:none}
 .choice .go,.choice .ghost{margin-top:0}
 .loading{margin:auto;font-family:var(--mono);font-size:12px;color:var(--muted)}
 [hidden]{display:none!important}
+/* his space */
+.card{margin-top:14px;padding:16px;background:var(--panel);border:1px solid var(--line)}
+.card h3{margin:4px 0 0;font-size:17px;font-weight:700;line-height:1.3;color:var(--white)}
+.card .body{margin-top:4px}
+.now{margin-top:22px;padding:18px;border:1px solid rgba(196,16,16,.55);background:linear-gradient(90deg,rgba(153,0,0,.28),rgba(153,0,0,.06))}
+.now.calm{border-color:var(--line);background:var(--panel)}
+.now p{margin:0;font-size:17px;font-weight:700;line-height:1.3;color:var(--white)}
+.now .small{margin-top:6px;font-weight:400}
+.now .go{margin-top:14px}
+.vs{margin-top:12px;display:flex;flex-direction:column;gap:9px}
+.vrow{display:grid;grid-template-columns:88px minmax(0,1fr) 62px;gap:10px;align-items:center}
+.vrow span{font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.vrow.low span{color:var(--white)}
+.vt{position:relative;height:10px;background:#242424}
+.vt i{position:absolute;left:0;top:0;bottom:0;background:var(--cream);transform-origin:left;animation:grow .8s cubic-bezier(.2,.7,.2,1) both}
+.vt b{position:absolute;top:-4px;bottom:-4px;width:3px;margin-left:-1px;background:#FF6B61}
+@keyframes grow{from{transform:scaleX(0)}}
+.vrow em{font-style:normal;font-family:var(--mono);font-size:11.5px;color:var(--soft);text-align:right;white-space:nowrap}
+.vleg{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:12px;font-size:11px;color:var(--faint)}
+.vleg i{display:inline-block;width:10px;height:10px;margin-right:6px;background:var(--cream);vertical-align:-1px}
+.vleg b{display:inline-block;width:3px;height:12px;margin-right:6px;background:#FF6B61;vertical-align:-2px}
+.list{margin-top:8px;border-top:1px solid var(--line)}
+.list div{display:flex;justify-content:space-between;gap:14px;padding:10px 0;border-bottom:1px solid var(--line);font-size:13px;line-height:1.45}
+.list b{flex:none;color:var(--cream)}
+.list span{text-align:right;color:var(--soft);overflow-wrap:anywhere}
+.list small{display:block;font-family:var(--mono);font-size:11px;color:var(--faint)}
+.hint{margin-top:14px;padding:14px;border:1px dashed var(--line2);font-size:12.5px;line-height:1.5;color:var(--soft)}
+.hint b{color:var(--cream)}
+.cal{margin-top:12px;min-height:44px;padding:0 14px;border:1px solid var(--line2);background:transparent;color:var(--cream);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.who span{max-width:16em}
 </style>
 </head>
 <body>
@@ -138,6 +174,39 @@ textarea.field{min-height:124px;line-height:1.5;resize:none}
 
   <section class="screen on" id="s-loading" aria-label="Opening"><p class="loading">Opening…</p></section>
 
+  <!-- First time on a phone: who sees what, and whether to remember him here -->
+  <section class="screen" id="s-hello" aria-labelledby="h-hello">
+    <div class="kicker" id="helloKicker">Actualize</div>
+    <h1 id="h-hello" tabindex="-1"></h1>
+    <p class="lede">This is your crew space.</p>
+    <p class="body">Check in at dinners, answer the weekly in a minute, and see how you're doing next to the crew.</p>
+    <div class="who" aria-label="Who sees what">
+      <div><b>You</b><span>Everything you answer, on the phone you pick</span></div>
+      <div><b id="helloAnchor">Your anchor</b><span>That you came, whether you did the weekly, your commitments, and when you were last on Circle. Your scores only if you share them.</span></div>
+      <div><b>Your crew</b><span>Averages only, once three answer</span></div>
+    </div>
+    <div class="grow"></div>
+    <span class="label" style="margin-top:22px">Is this your own phone?</span>
+    <div class="choice"><button class="go" id="helloYes" type="button">Yes, remember me</button><button class="ghost" id="helloNo" type="button">Not my phone</button></div>
+    <p class="status" id="helloStatus" role="status"></p>
+    <p class="foot">Keep your link to yourself. Your answers only ever show on the phone you pick.</p>
+  </section>
+
+  <!-- His space, on the phone he chose -->
+  <section class="screen" id="s-home" aria-labelledby="h-home">
+    <div class="kicker" id="homeKicker">Actualize</div>
+    <h1 id="h-home" tabindex="-1"></h1>
+    <p class="meta">Your space · only on this phone</p>
+    <div class="now" id="homeNow"></div>
+    <div class="card" id="homeNext" hidden></div>
+    <div class="card" id="homeVs"></div>
+    <div class="card" id="homeWeeks" hidden></div>
+    <div class="card" id="homeCommit" hidden></div>
+    <div class="hint" id="homeInstall" hidden></div>
+    <div class="grow"></div>
+    <p class="foot">Only you see this page. Your crew sees averages, never your answers.</p>
+  </section>
+
   <!-- Welcome: a private link knows who he is; the table code asks -->
   <section class="screen" id="s-welcome" aria-labelledby="h-welcome">
     <div class="kicker" id="welcomeKicker">Actualize</div>
@@ -146,9 +215,9 @@ textarea.field{min-height:124px;line-height:1.5;resize:none}
     <p class="lede" id="welcomeLede">Two moments tonight.</p>
     <p class="body">A minute now. A minute at the close.</p>
     <div class="who" aria-label="Who sees what">
-      <div><b>Your answers</b><span>Only who you choose, at the close</span></div>
-      <div><b>Your crew</b><span>Totals only</span></div>
-      <div><b>This page</b><span>Sends answers. Never shows them back.</span></div>
+      <div><b>Your scores</b><span>Yours. At the close you choose who else sees them.</span></div>
+      <div><b id="welcomeAnchor">Your anchor</b><span>Sees that you came, and your commitment</span></div>
+      <div><b>Your crew</b><span>Averages only, once three answer</span></div>
     </div>
     <div class="grow"></div>
     <div id="whoBox" hidden>
@@ -156,6 +225,7 @@ textarea.field{min-height:124px;line-height:1.5;resize:none}
       <div class="names" id="names" role="group" aria-labelledby="namesLabel"></div>
     </div>
     <button class="go" id="toWheel" type="button">Begin</button>
+    <button class="link" id="notMe" type="button" hidden></button>
     <p class="foot" id="welcomeFoot"></p>
   </section>
 
@@ -188,6 +258,7 @@ textarea.field{min-height:124px;line-height:1.5;resize:none}
     <h2 id="h-arrived" tabindex="-1" style="margin-top:22px;font-size:34px;line-height:.98">You're in.<br>Phone away.</h2>
     <p class="body" style="margin-top:18px" id="arrivedHow"></p>
     <div class="arrived"><div class="mini" id="arrivedWheel" style="width:120px;height:120px"></div><div class="txt"><span class="label">How you arrived</span><b id="arrivedAvg"></b><span class="small" id="arrivedLow"></span></div></div>
+    <div class="card" id="arrivedVs" hidden></div>
     <p class="status" id="arrivedStatus" role="status"></p>
     <button class="ghost" id="retryArrive" type="button" hidden>Try sending again</button>
     <div class="grow"></div>
@@ -207,8 +278,8 @@ textarea.field{min-height:124px;line-height:1.5;resize:none}
     <div class="chips when" id="whenChips" role="group" aria-labelledby="whenLabel"></div>
     <label class="label" for="offer" style="margin-top:16px">One thing you could help a crew mate with · optional</label>
     <input class="field" id="offer" type="text" maxlength="300" enterkeyhint="done">
-    <span id="shareLabel" style="margin-top:20px;font-size:13px;font-weight:700;line-height:1.4;color:var(--cream)">Who can see your own answers?</span>
-    <p class="small" style="margin:4px 0 0">Your crew only ever sees totals. Nobody is a fine answer.</p>
+    <span id="shareLabel" style="margin-top:20px;font-size:13px;font-weight:700;line-height:1.4;color:var(--cream)">Who else sees your scores and what you brought?</span>
+    <p class="small" style="margin:4px 0 0" id="shareNote">Your anchor sees that you came and your commitment, so he can follow up. Your crew only sees averages. Nobody else is a fine answer.</p>
     <div class="chips stack" id="shareChips" role="group" aria-labelledby="shareLabel"></div>
     <div class="grow"></div>
     <button class="go" id="sendClose" type="button" disabled>Lock it in</button>
@@ -222,10 +293,12 @@ textarea.field{min-height:124px;line-height:1.5;resize:none}
     <div class="commit"><span class="label">Your commitment</span><span class="text" id="doneCommit"></span><span class="when" id="doneWhen"></span></div>
     <p class="body" style="margin-top:18px" id="doneNext"></p>
     <div class="arrived"><div class="mini" id="doneWheel" style="width:120px;height:120px"></div><div class="txt"><span class="label">How you arrived</span><b id="doneAvg"></b><span class="small" id="doneLow"></span></div></div>
+    <div class="card" id="doneVs" hidden></div>
     <p class="status" id="doneStatus" role="status"></p>
     <button class="ghost" id="retryClose" type="button" hidden>Try sending again</button>
     <div class="grow"></div>
-    <p class="foot">Nothing you sent stays on this phone once it's in.</p>
+    <button class="go" id="doneHome" type="button" hidden>Open your space</button>
+    <p class="foot" id="doneFoot">Nothing you sent stays on this phone once it's in.</p>
   </section>
 
   <!-- Between dinners, through a private link -->
@@ -249,12 +322,15 @@ textarea.field{min-height:124px;line-height:1.5;resize:none}
     <div class="kicker" id="noteKicker">Actualize</div>
     <h2 id="h-note" tabindex="-1"></h2>
     <p class="body" id="noteBody"></p>
+    <div class="card" id="noteVs" hidden></div>
     <div class="grow"></div>
+    <button class="go" id="noteHome" type="button" hidden>Open your space</button>
     <button class="ghost" id="noteNext" type="button" hidden>Next</button>
+    <button class="link" id="noteRemember" type="button" hidden>This is my phone. Remember me.</button>
     <p class="foot" id="noteFoot"></p>
   </section>
 </div>
 <script src="config.js"></script>
-<script src="checkin.js"></script>
+<script src="checkin.js?v=2"></script>
 </body>
 </html>

@@ -4,18 +4,18 @@ One app for every city's Breaking Bread dinners. It runs on GitHub Pages and a S
 
 ## Who uses it, and how
 
-- **Men** never sign in and never give an email. At a dinner they scan the table QR code and pick their name, or open the private link their anchor sent them. Both only send answers. Nothing they send is ever shown back.
-- **Anchors** sign in at `crew.html` with an emailed code. They see who has checked in, the crew's totals, and a man's own answers only where he chose to share them with his anchor. They make the private links, set dinner dates and hosts, and show the table QR code.
+- **Men** never sign in and never give an email. They open the private link their anchor sent them, or at a dinner scan the table QR code and pick their name. The first time a man opens his link he can tap "Yes, remember me" on his own phone. From then on his link opens his own space on that phone: his check-ins and weeks next to the crew's averages, and his commitments. On any other phone his link only sends answers and never shows them back.
+- **Anchors** sign in at `crew.html` with an emailed code. They see who has checked in, the crew's averages, every commitment, and a man's own answers only where he chose to share them with his anchor. They make the private links, set dinner dates and hosts, and show the table QR code. Each man has a connection score from dinners, the weekly check-in, commitments kept and when he was last on Circle, so the anchor can see who to check in with. Only the anchor sees it.
 - **City leads** sign in the same way. They see counts for every crew in their city, and a man's own answers only where he chose to share them with the city lead.
-- Totals only show once three or more men have answered.
+- Averages only show once three or more men have answered.
 
 ## Files
 
-- `index.html`, `checkin.js`: the check-in for men (`#k=` private link, `#t=` table code)
+- `index.html`, `checkin.js`: the check-in and each man's own space (`#k=` private link, `#t=` table code)
+- `manifest.webmanifest`, `icon-*.png`: so a man can keep his space on his home screen
 - `crew.html`, `crew.js`: sign-in and dashboards for anchors and city leads
 - `config.js`: the project URL and publishable key. Both are safe to publish. Never put the secret key here.
 - `db/schema.sql`: the whole database, with its access rules. Safe to run again.
-- `.github/workflows/keep-awake.yml`: a daily call so the free project doesn't pause
 
 Member data never goes in this repository: no emails, no answers, no crew lists.
 

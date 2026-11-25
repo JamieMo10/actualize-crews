@@ -1,7 +1,8 @@
 // Breaking Bread check-in for Actualize crews. Men never sign in.
-//   #k=<key>          his own private link: answers for tonight, the kept question, the weekly check-in
-//   #t=<dinner>.<code> the table QR code: he picks his name, then answers
-// Both only send answers. Nothing he has sent is ever read back from the database.
+//   #k=<key>[&d=<phone>] his own private link: tonight's answers, the kept question, the weekly check-in, and on the
+//                        one phone he chose, his own space with his answers over time next to the crew's averages
+//   #t=<dinner>.<code>   the table QR code: he picks his name, or a phone that knows him goes straight in
+// A link opened anywhere else only takes answers. Nothing is read back except on the phone he chose.
 (function () {
   'use strict';
   var CFG = window.CREWS_CONFIG || {};
@@ -35,17 +36,42 @@
     }).finally(function () { if (timer) clearTimeout(timer); });
   }
 
+  // ---- this phone ----
+  // ac-me keeps his link and this phone's own secret, once he says this is his phone. The secret also rides in the
+  // address after #, so a home-screen icon (which on iPhone keeps its own storage) still opens his space.
+  function stored(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } }
+  function store(k, v) { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  function newSecret() {
+    var a = new Uint8Array(32); (window.crypto || window.msCrypto).getRandomValues(a);
+    return Array.prototype.map.call(a, function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+  }
+
   // ---- where we are ----
   var hash = new URLSearchParams(location.hash.replace(/^#/, ''));
-  var ctx = { mode: null };
+  var ctx = { mode: null, phone: 'none' };
   if (hash.get('k')) { ctx.mode = 'link'; ctx.key = hash.get('k'); }
   else if (hash.get('t')) { var tp = hash.get('t').split('.'); ctx.mode = 'table'; ctx.dinnerKey = tp[0]; ctx.code = tp[1] || ''; }
+  else { var me0 = stored('ac-me'); if (me0 && me0.key) { ctx.mode = 'link'; ctx.key = me0.key; } }
+  function phoneSecret() {
+    if (hash.get('d') && hash.get('k') === ctx.key) return hash.get('d');
+    var me = stored('ac-me'); return me && me.key === ctx.key ? me.device : null;
+  }
+  function remember() {
+    store('ac-me', { key: ctx.key, device: ctx.device, first: ctx.first });
+    try { history.replaceState(null, '', location.pathname + location.search + '#k=' + ctx.key + '&d=' + ctx.device); } catch (e) {}
+  }
 
+  function tzOf() { return ctx.tz || undefined; }
   function when(iso, tz) {
     if (!iso) return '';
     try { return new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: tz || undefined }).format(new Date(iso)).replace(',', ''); }
     catch (e) { return new Date(iso).toDateString(); }
   }
+  function timeOf(iso) {
+    try { return new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', timeZone: tzOf() }).format(new Date(iso)).toLowerCase().replace(/ /g, ' '); }
+    catch (e) { return ''; }
+  }
+  function shortDay(t) { try { return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: tzOf() }).format(new Date(t)); } catch (e) { return ''; } }
   function nextDinnerName() { return ctx.dinner ? 'dinner ' + (ctx.dinner.n + 1) : 'the next dinner'; }
 
   // ---- answers in progress, kept on this phone only until they're in ----
@@ -72,10 +98,14 @@
   function say(msg) { $('live').textContent = msg; }
   function note(kicker, title, body, foot, next) {
     $('noteKicker').textContent = kicker; $('h-note').textContent = title; $('noteBody').textContent = body || '';
-    $('noteFoot').textContent = foot || '';
+    $('noteFoot').textContent = foot || (ctx.mode === 'link' && ctx.phone === 'other' ? 'Your space, with your answers, opens on the phone you chose. Here you can still answer.' : '');
     $('noteNext').hidden = !next; $('noteNext').onclick = next || null;
+    $('noteVs').hidden = true; $('noteVs').textContent = '';
+    $('noteHome').hidden = !(ctx.mode === 'link' && ctx.phone === 'this');
+    $('noteRemember').hidden = !(ctx.mode === 'link' && ctx.phone === 'none');
     show('note');
   }
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined && text !== null) e.textContent = text; return e; }
 
   // ---- the wheel ----
   function buildWheel(host, scale) {
@@ -130,6 +160,10 @@
     if (!vals.length) return null;
     return Math.round(vals.reduce(function (s, v) { return s + v; }, 0) / vals.length * 10) / 10;
   }
+  function avgOf(obj) {
+    var vals = AREAS.map(function (a) { return obj && obj[a[0]]; }).filter(function (v) { return v !== null && v !== undefined; }).map(Number);
+    return vals.length ? vals.reduce(function (s, v) { return s + v; }, 0) / vals.length : null;
+  }
   function lowest() {
     var best = null;
     AREAS.forEach(function (a) { var v = st.scores[a[0]]; if (v && (!best || v < best.v)) best = { key: a[0], label: a[1], v: v }; });
@@ -146,6 +180,52 @@
       f.style.transform = 'scaleY(' + (v ? v / 5 : 0) + ')';
     });
     setTimeout(function () { AREAS.forEach(function (a) { wh.fills[a[0]].style.transitionDelay = ''; }); }, 1500);
+  }
+
+  // ---- him next to the crew: his bar, the crew's average as a line ----
+  function vsRows(box, mine, crew) {
+    var lows = AREAS.filter(function (a) { return mine[a[0]]; }).map(function (a) { return Number(mine[a[0]]); });
+    var lo = lows.length ? Math.min.apply(null, lows) : null;
+    var single = AREAS.filter(function (a) { return Number(mine[a[0]]) === lo; }).length <= 2;
+    var rows = el('div', 'vs');
+    AREAS.forEach(function (a) {
+      var v = mine[a[0]], c = crew && crew[a[0]];
+      if (!v) return;
+      var row = el('div', 'vrow' + (single && Number(v) === lo ? ' low' : ''));
+      row.appendChild(el('span', null, a[1]));
+      var t = el('div', 'vt'); var bar = el('i'); bar.style.width = (Number(v) / 5 * 100) + '%'; t.appendChild(bar);
+      if (c !== null && c !== undefined) { var tick = el('b'); tick.style.left = (Number(c) / 5 * 100) + '%'; t.appendChild(tick); }
+      row.appendChild(t);
+      row.appendChild(el('em', null, v + (c !== null && c !== undefined ? ' · ' + Number(c).toFixed(1) : '')));
+      rows.appendChild(row);
+    });
+    box.appendChild(rows);
+    var leg = el('div', 'vleg'); var a1 = el('span'); a1.appendChild(el('i')); a1.appendChild(document.createTextNode('You'));
+    var a2 = el('span'); a2.appendChild(el('b')); a2.appendChild(document.createTextNode('Crew average'));
+    leg.appendChild(a1); leg.appendChild(a2); box.appendChild(leg);
+    // His lowest area, named in words rather than by colour, so the colours only ever mean you and the crew.
+    var names = single ? AREAS.filter(function (a) { return Number(mine[a[0]]) === lo; }).map(function (a) { return a[1]; }) : [];
+    return names.length ? ' Your lowest: ' + names.join(' and ') + '.' : '';
+  }
+  // Right after he answers: his answers next to the crew's, once three or more are in.
+  function crewNow(boxId, dinnerKey, week) {
+    var box = $(boxId); box.textContent = ''; box.hidden = true;
+    var call = ctx.mode === 'link' ? rpc('link_crew_now', { p_key: ctx.key, p_dinner: week ? null : dinnerKey })
+      : rpc('table_crew_now', { p_dinner: ctx.dinner.key, p_code: ctx.code, p_person: ctx.person });
+    return call.then(function (r) {
+      if (!r) return;
+      box.hidden = false;
+      box.appendChild(el('span', 'label', week ? 'Your week next to the crew\'s' : 'You next to the crew tonight'));
+      if (!r.averages) {
+        var n = r.count;
+        box.appendChild(el('p', 'body', (week ? (n === 1 ? 'You\'re the first to answer this week.' : n + ' of you have answered this week.') : (n === 1 ? 'You\'re the first one in.' : n + ' of you are in so far.')) +
+          (week ? ' The crew\'s week shows once three of you answer.' : ' The crew\'s average shows once three of you are in.')));
+        return;
+      }
+      var low = vsRows(box, st.scores, r.averages);
+      var mine = average(), crew = avgOf(r.averages);
+      box.appendChild(el('p', 'small', 'You ' + (mine === null ? '' : mine.toFixed(1)) + ', the crew ' + (crew === null ? '' : crew.toFixed(1)) + ', from ' + r.count + ' ' + (week ? 'answers' : 'men') + '.' + low));
+    }, function () { box.hidden = true; });
   }
 
   // ---- sliders: a tap picks the value under the finger, a sideways drag slides, a vertical swipe scrolls ----
@@ -321,10 +401,11 @@
       : 'At the close, scan the same code again on this phone. It picks up where you left off.';
     var msg = arrivedStatus();
     show('arrived'); bloom(arrivedW); say(msg);
+    if (st.arrive && st.arrive.status === 'sent') crewNow('arrivedVs', ctx.dinner.key, false);
   }
   $('retryArrive').addEventListener('click', function () {
     $('arrivedStatus').textContent = 'Sending…'; $('retryArrive').hidden = true;
-    sendStage('arrive').then(function () { say(arrivedStatus()); });
+    sendStage('arrive').then(function () { say(arrivedStatus()); if (st.arrive.status === 'sent') crewNow('arrivedVs', ctx.dinner.key, false); });
   });
   $('toClose').addEventListener('click', openClose);
 
@@ -344,9 +425,9 @@
   function shares() {
     var an = ctx.anchor, cl = ctx.cityLead;
     return [
-      ['none', 'Nobody. Totals only.'],
+      ['none', 'Nobody else. Averages only.'],
       ['anchor', an ? an + ', my anchor' : 'My anchor'],
-      ['city', an && cl ? an + ' and ' + cl + ', the city lead' : 'My anchor and the city lead']
+      ['city', an && cl ? an + ' and ' + cl + ' at Actualize' : 'My anchor and Actualize']
     ];
   }
   function drawClosePickers() {
@@ -368,6 +449,7 @@
       $('recapArea').textContent = labelOf(st.area);
     }
     $('commitLabel').textContent = 'What will you do about it before ' + nextDinnerName() + '?';
+    $('shareNote').textContent = (ctx.anchor || 'Your anchor') + ' sees that you came and your commitment, so he can follow up. Your crew only sees averages. Nobody else is a fine answer.';
     $('editArrival').hidden = !hasRecap && !setCount();
     commitEl.value = st.commitment; offerEl.value = st.offer;
     drawClosePickers();
@@ -399,14 +481,21 @@
     var a = average(); var low = lowest();
     $('doneAvg').textContent = a === null ? '' : a.toFixed(1);
     $('doneLow').textContent = low ? 'Lowest: ' + low.label : '';
+    var paired = ctx.mode === 'link' && ctx.phone === 'this';
+    $('doneHome').hidden = !paired;
+    $('doneFoot').textContent = paired ? 'Your answers are kept in your space, on this phone only.' : 'Nothing you sent stays on this phone once it\'s in.';
     var msg = doneStatus();
     show('done'); bloom(doneW); say(msg);
+    if (st.close && st.close.status === 'sent') crewNow('doneVs', ctx.dinner.key, false);
   }
   $('retryClose').addEventListener('click', function () {
     $('doneStatus').textContent = 'Sending…'; $('retryClose').hidden = true;
     var first = retryable('arrive') ? sendStage('arrive') : Promise.resolve('sent');
-    first.then(function () { return sendStage('close'); }).then(function () { say(doneStatus()); });
+    first.then(function () { return sendStage('close'); }).then(function () { say(doneStatus()); if (st.close.status === 'sent') crewNow('doneVs', ctx.dinner.key, false); });
   });
+  $('doneHome').addEventListener('click', function () { openHome(true); });
+  $('noteHome').addEventListener('click', function () { openHome(true); });
+  $('noteRemember').addEventListener('click', function () { store('ac-notmine', null); openHello(); });
   window.addEventListener('online', function () {
     if (retryable('arrive')) sendStage('arrive').then(arrivedStatus);
     if (st.close && retryable('close')) sendStage('close').then(doneStatus);
@@ -417,9 +506,12 @@
     $('welcomeKicker').textContent = 'Actualize · ' + (ctx.crew || 'Your crew');
     $('dinnerMeta').textContent = 'Dinner ' + ctx.dinner.n + ' · ' + when(ctx.dinner.starts_at, ctx.tz);
     $('welcomeLede').textContent = (ctx.first ? 'Hi ' + ctx.first + '. ' : '') + 'Two moments tonight.';
+    $('welcomeAnchor').textContent = ctx.anchor ? ctx.anchor + ', your anchor' : 'Your anchor';
     $('whoBox').hidden = ctx.mode !== 'table';
+    $('notMe').hidden = !ctx.recognised;
+    $('notMe').textContent = ctx.recognised ? 'Not ' + ctx.first + '? Pick your name' : '';
     $('welcomeFoot').textContent = ctx.mode === 'link'
-      ? 'This is your own link. Anyone with it could answer as you, so keep it to yourself.'
+      ? (ctx.recognised ? 'This phone knows you, so there\'s no list to pick from.' : 'This is your own link. Anyone with it could answer as you, so keep it to yourself.')
       : 'Pick your own name. Your answers are sent privately.';
     if (ctx.mode === 'table') drawNames();
     $('toWheel').disabled = ctx.mode === 'table' && !ctx.person;
@@ -444,6 +536,10 @@
     if (st.arrive && !retryable('arrive')) { openClose(); return; }
     openWheel();
   });
+  $('notMe').addEventListener('click', function () {
+    ctx.recognised = false; ctx.mode = 'table'; ctx.key = null; ctx.person = null; ctx.first = null; ctx.code = ctx.tableCode;
+    openTable();
+  });
 
   // ---- between dinners: kept, and the weekly check-in ----
   function openKept(thenGo) {
@@ -463,12 +559,14 @@
     show('kept');
   }
   function openPulse() { show('pulse'); }
-  $('toPulse').addEventListener('click', function () { ctx.pulse = true; st = blank(); problemEl.value = ''; openWheel(); });
+  function startPulse() { ctx.pulse = true; st = blank(); problemEl.value = ''; openWheel(); }
+  $('toPulse').addEventListener('click', startPulse);
   function sendPulse() {
     $('toProblem').disabled = true; $('wheelStatus').textContent = 'Sending…';
     rpc('link_pulse', { p_key: ctx.key, p_scores: st.scores }).then(function () {
       ctx.pulseDone = true;
       note('This week', 'Sent. See you next week.', nextLine(), '');
+      crewNow('noteVs', null, true);
     }, function (e) {
       $('toProblem').disabled = false;
       $('wheelStatus').textContent = e.refused ? 'That didn\'t go through: ' + e.message : 'No connection. Try again when you have signal.';
@@ -481,40 +579,189 @@
   function betweenDinners() {
     if (ctx.keptAsk) { openKept(betweenDinners); return; }
     if (!ctx.pulseDone) { openPulse(); return; }
-    note('Actualize · ' + (ctx.crew || ''), 'Nothing to answer right now.', nextLine(), 'This link only ever sends answers. Keep it to yourself.');
+    note('Actualize · ' + (ctx.crew || ''), 'Nothing to answer right now.', nextLine(), ctx.phone === 'other' ? '' : 'Keep your link to yourself.');
+  }
+
+  // ---- his space ----
+  function nextDinner(ds) {
+    var now = Date.now();
+    return ds.filter(function (d) { return d.open || (d.starts_at && new Date(d.starts_at).getTime() > now); })
+      .sort(function (a, b) { return new Date(a.starts_at) - new Date(b.starts_at); })[0]
+      || ds.filter(function (d) { return !d.starts_at; }).sort(function (a, b) { return a.n - b.n; })[0] || null;
+  }
+  function ics(d) {
+    var stamp = function (t) { return new Date(t).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, ''); };
+    var esc = function (s) { return String(s).replace(/[\\,;]/g, function (c) { return '\\' + c; }); };
+    var text = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Actualize//Crews//EN', 'BEGIN:VEVENT', 'UID:' + d.key + '@actualize-crews',
+      'DTSTAMP:' + stamp(Date.now()), 'DTSTART:' + stamp(d.starts_at), 'DTEND:' + stamp(d.ends_at),
+      'SUMMARY:' + esc('Breaking Bread · Dinner ' + d.n + ' · ' + d.job),
+      'DESCRIPTION:' + esc((d.host ? d.host + ' hosts. ' : '') + 'The address is in the crew chat. Check in with your link.'),
+      'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+    var url = URL.createObjectURL(new Blob([text], { type: 'text/calendar' }));
+    var a = document.createElement('a'); a.href = url; a.download = 'breaking-bread-dinner-' + d.n + '.ics';
+    document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 2000);
+  }
+  function standalone() { return (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true; }
+  function renderHome() {
+    var sp = ctx.space, o = ctx.open;
+    ctx.pulse = false;
+    $('homeKicker').textContent = 'Actualize · ' + (sp.crew || '');
+    $('h-home').textContent = sp.first_name;
+    // the one thing to do now
+    var now = $('homeNow'); now.textContent = ''; now.className = 'now';
+    var act = function (text, sub, label, go) {
+      now.appendChild(el('p', null, text)); if (sub) now.appendChild(el('p', 'small', sub));
+      if (label) { var b = el('button', 'go', label); b.type = 'button'; b.id = 'homeGo'; b.addEventListener('click', go); now.appendChild(b); }
+    };
+    if (o.dinner && !o.dinner.closed) {
+      ctx.dinner = o.dinner; st = load(); problemEl.value = st.problem;
+      if (o.dinner.arrived) act('Dinner ' + o.dinner.n + ' is on. Time for the close.', 'Your commitment, and who else sees your answers.', 'Do the close', openClose);
+      else act('Dinner ' + o.dinner.n + ' is on.', 'Check in when you sit down. A minute now, a minute at the close.', 'Check in', openWelcome);
+    } else if (ctx.keptAsk) {
+      act('Did you keep your commitment from dinner ' + ctx.keptAsk.n + '?', null, 'Answer', function () { openKept(function () { openHome(true); }); });
+    } else if (!ctx.pulseDone) {
+      act('How\'s the week?', 'Nine sliders, a minute. You\'ll see the crew\'s week next to yours.', 'Begin', startPulse);
+    } else {
+      now.className = 'now calm';
+      act(o.dinner && o.dinner.closed ? 'You\'re done for tonight.' : 'Nothing to answer right now.', 'The weekly check-in opens again on Monday.');
+    }
+    // the next dinner
+    var nd = nextDinner(sp.dinners || []), nx = $('homeNext'); nx.textContent = ''; nx.hidden = !nd;
+    if (nd) {
+      nx.appendChild(el('span', 'label', nd.open ? 'Tonight' : 'Next dinner'));
+      nx.appendChild(el('h3', null, 'Dinner ' + nd.n + ' · ' + nd.job));
+      nx.appendChild(el('p', 'body', nd.starts_at ? when(nd.starts_at, ctx.tz) + ', ' + timeOf(nd.starts_at) + (nd.host ? ' · ' + nd.host + ' hosts' : '') : 'Date to come' + (nd.host ? ' · ' + nd.host + ' hosts' : '')));
+      if (nd.starts_at && !nd.open) { var cb = el('button', 'cal', 'Add to calendar'); cb.type = 'button'; cb.addEventListener('click', function () { ics(nd); }); nx.appendChild(cb); }
+    }
+    // him next to the crew, at his latest dinner
+    var mine = sp.mine || { checkins: [], weeks: [] }, pic = sp.crew_picture || { dinners: [], weeks: [] };
+    var vs = $('homeVs'); vs.textContent = '';
+    var last = mine.checkins.filter(function (c) { return c.arrived && Object.keys(c.scores || {}).length; }).pop();
+    if (!last) {
+      vs.appendChild(el('span', 'label', 'You next to the crew'));
+      vs.appendChild(el('p', 'body', 'After your first check-in, your wheel shows here next to the crew\'s average.'));
+    } else {
+      var cd = pic.dinners.filter(function (x) { return x.dinner === last.dinner; })[0] || {};
+      vs.appendChild(el('span', 'label', 'Dinner ' + last.n + ': you next to the crew'));
+      var low = vsRows(vs, last.scores, cd.averages);
+      var ma = avgOf(last.scores), ca = avgOf(cd.averages);
+      vs.appendChild(el('p', 'small', (cd.averages ? 'You ' + ma.toFixed(1) + ', the crew ' + ca.toFixed(1) + '.' : 'The crew\'s average shows once three of you have checked in.') + low));
+    }
+    // his weeks
+    var wk = $('homeWeeks'); wk.textContent = ''; wk.hidden = !mine.weeks.length;
+    if (mine.weeks.length) {
+      wk.appendChild(el('span', 'label', 'Your weeks'));
+      var crewWeek = {}; pic.weeks.forEach(function (w) { if (w.averages) crewWeek[w.week] = avgOf(w.averages); });
+      var rows = el('div', 'vs');
+      mine.weeks.slice(-8).forEach(function (w) {
+        var v = avgOf(w.scores), c = crewWeek[w.week];
+        var row = el('div', 'vrow'); row.appendChild(el('span', null, shortDay(w.week + 'T12:00:00Z')));
+        var t = el('div', 'vt'); var bar = el('i'); bar.style.width = (v / 5 * 100) + '%'; t.appendChild(bar);
+        if (c !== undefined) { var tick = el('b'); tick.style.left = (c / 5 * 100) + '%'; t.appendChild(tick); }
+        row.appendChild(t); row.appendChild(el('em', null, v.toFixed(1) + (c !== undefined ? ' · ' + c.toFixed(1) : '')));
+        rows.appendChild(row);
+      });
+      wk.appendChild(rows);
+    }
+    // his commitments
+    var cm = $('homeCommit'); cm.textContent = '';
+    var commits = mine.checkins.filter(function (c) { return c.commitment; });
+    cm.hidden = !commits.length;
+    if (commits.length) {
+      cm.appendChild(el('span', 'label', 'Your commitments'));
+      var list = el('div', 'list');
+      commits.slice().reverse().forEach(function (c) {
+        var row = el('div'); row.appendChild(el('b', null, 'Dinner ' + c.n));
+        var right = el('span', null, c.commitment);
+        right.appendChild(el('small', null, (c.by_when || '') + (c.kept === true ? ' · kept' : c.kept === false ? ' · not yet' : '')));
+        row.appendChild(right); list.appendChild(row);
+      });
+      cm.appendChild(list);
+    }
+    // keep it on the home screen
+    var hint = $('homeInstall'); hint.textContent = ''; hint.hidden = standalone();
+    if (!hint.hidden) {
+      var ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
+      hint.appendChild(el('b', null, 'Keep it on your home screen. '));
+      hint.appendChild(document.createTextNode(ios ? 'Tap the Share button, then Add to Home Screen. It opens straight to your space.' : 'Open the browser menu, then Add to Home screen. It opens straight to your space.'));
+    }
+    show('home');
+  }
+  function openHome(fresh) {
+    if (!fresh && ctx.space) { renderHome(); return; }
+    Promise.all([rpc('link_open', { p_key: ctx.key }), rpc('link_space', { p_key: ctx.key, p_device: ctx.device })]).then(function (r) {
+      if (!r[0] || !r[1]) { note('Actualize', 'This link isn\'t active.', 'Ask your anchor for a new one.'); return; }
+      applyOpen(r[0]); ctx.space = r[1]; ctx.phone = r[1].phone;
+      if (ctx.phone !== 'this') { route(); return; }
+      renderHome();
+    }, function (e) { note('Actualize', 'Can\'t open right now.', e.refused ? e.message : 'No connection. Try again when you have signal.'); });
+  }
+
+  // ---- first time on a phone ----
+  function openHello() {
+    $('helloKicker').textContent = 'Actualize · ' + (ctx.crew || 'Your crew');
+    $('h-hello').textContent = 'Hi ' + ctx.first;
+    $('helloAnchor').textContent = ctx.anchor ? ctx.anchor + ', your anchor' : 'Your anchor';
+    $('helloStatus').textContent = '';
+    show('hello');
+  }
+  $('helloYes').addEventListener('click', function () {
+    var secret = newSecret();
+    $('helloYes').disabled = true; $('helloStatus').textContent = 'Setting up…';
+    rpc('link_pair', { p_key: ctx.key, p_device: secret }).then(function (r) {
+      $('helloYes').disabled = false;
+      if (r && r.paired) { ctx.device = secret; ctx.phone = 'this'; remember(); ctx.space = null; afterHello(); return; }
+      ctx.phone = 'other'; route();
+    }, function (e) { $('helloYes').disabled = false; $('helloStatus').textContent = e.refused ? 'That didn\'t go through: ' + e.message : 'No connection. Try again when you have signal.'; });
+  });
+  $('helloNo').addEventListener('click', function () { store('ac-notmine', ctx.key); ctx.phone = 'none'; route(); });
+  function afterHello() {
+    if (ctx.open.dinner && !ctx.open.dinner.closed) { route(); return; }
+    openHome(true);
   }
 
   // ---- start ----
-  var bigW = buildWheel($('bigWheel'));
-  var arrivedW = buildWheel($('arrivedWheel'), 0.5);
-  var closeW = buildWheel($('closeWheel'), 0.4);
-  var doneW = buildWheel($('doneWheel'), 0.5);
-  wheels.push(bigW, arrivedW, closeW, doneW);
-
-  if (!CFG.url || !CFG.key || /YOUR/.test(CFG.url + CFG.key)) { note('Actualize', 'Not set up yet.', 'This page hasn\'t been connected to its database.'); return; }
-  if (ctx.mode === 'link') {
-    rpc('link_open', { p_key: ctx.key }).then(function (o) {
-      if (!o) { note('Actualize', 'This link isn\'t active.', 'Ask your anchor for a new one.'); return; }
-      ctx.first = o.first_name; ctx.crew = o.crew; ctx.tz = o.tz; ctx.anchor = o.anchor; ctx.cityLead = o.city_lead;
-      ctx.next = o.next_dinner; ctx.keptAsk = o.kept_ask; ctx.pulseDone = o.pulse_done;
-      if (!o.dinner) { betweenDinners(); return; }
-      ctx.dinner = o.dinner;
-      st = load(); problemEl.value = st.problem;
-      var go = function () {
-        if (o.dinner.closed && !(st.close && st.close.status !== 'sent')) {
-          note('Dinner ' + o.dinner.n, 'You\'re done for tonight.', 'Your answers are in. This page never shows them back.', '');
-          return;
-        }
-        if (o.dinner.arrived && !st.arrive) st.arrive = { status: 'sent' };
-        if (st.close && retryable('close')) { openDone(); return; }
-        if (st.arrive) { if (st.arrive.status === 'sent' || retryable('arrive')) { openClose(); return; } }
-        openWelcome();
-      };
-      if (ctx.keptAsk) openKept(go); else go();
+  function applyOpen(o) {
+    ctx.open = o;
+    ctx.first = o.first_name; ctx.crew = o.crew; ctx.tz = o.tz; ctx.anchor = o.anchor; ctx.cityLead = o.city_lead;
+    ctx.next = o.next_dinner; ctx.keptAsk = o.kept_ask; ctx.pulseDone = o.pulse_done;
+  }
+  // Where a link goes: tonight's dinner when one is open, otherwise his space on his phone, or the next thing to answer.
+  function route() {
+    var o = ctx.open;
+    if (!o.dinner) { if (ctx.phone === 'this') openHome(false); else betweenDinners(); return; }
+    ctx.dinner = o.dinner;
+    st = load(); problemEl.value = st.problem;
+    var go = function () {
+      if (o.dinner.closed && !(st.close && st.close.status !== 'sent')) {
+        if (ctx.phone === 'this') { openHome(true); return; }
+        note('Dinner ' + o.dinner.n, 'You\'re done for tonight.', 'Your answers are in. This page doesn\'t show them back here.', '');
+        return;
+      }
+      if (o.dinner.arrived && !st.arrive) st.arrive = { status: 'sent' };
+      if (st.close && retryable('close')) { openDone(); return; }
+      if (st.arrive) { if (st.arrive.status === 'sent' || retryable('arrive')) { openClose(); return; } }
+      openWelcome();
+    };
+    if (ctx.keptAsk) openKept(go); else go();
+  }
+  function startLink() {
+    ctx.device = phoneSecret();
+    Promise.all([rpc('link_open', { p_key: ctx.key }), rpc('link_space', { p_key: ctx.key, p_device: ctx.device })]).then(function (r) {
+      var o = r[0], sp = r[1];
+      if (!o) {
+        var me = stored('ac-me'); if (me && me.key === ctx.key) store('ac-me', null);
+        note('Actualize', 'This link isn\'t active.', 'Ask your anchor for a new one.'); return;
+      }
+      applyOpen(o); ctx.space = sp; ctx.phone = sp ? sp.phone : 'none';
+      if (ctx.phone === 'this') { remember(); route(); return; }
+      if (ctx.phone === 'none' && stored('ac-notmine') !== ctx.key) { openHello(); return; }
+      route();
     }, function (e) {
       note('Actualize', 'Can\'t open right now.', e.refused ? e.message : 'No connection. Try again when you have signal.');
     });
-  } else if (ctx.mode === 'table') {
+  }
+  function openTable() {
     rpc('table_open', { p_dinner: ctx.dinnerKey, p_code: ctx.code }).then(function (o) {
       if (!o) { note('Actualize', 'Check-in isn\'t open.', 'It opens three hours before the dinner and closes a day after. If that doesn\'t sound right, ask your anchor.'); return; }
       ctx.dinner = o.dinner; ctx.crew = o.crew; ctx.men = o.men; ctx.tz = o.tz; ctx.anchor = o.anchor; ctx.cityLead = o.city_lead;
@@ -522,7 +769,27 @@
     }, function (e) {
       note('Actualize', 'Can\'t open right now.', e.refused ? e.message : 'No connection. Try again when you have signal.');
     });
-  } else {
-    note('Actualize', 'This page needs your link.', 'Open the private link your anchor sent you, or scan the code on the table.');
   }
+  // At the table, a phone that knows him goes straight to his own check-in.
+  function startTable() {
+    ctx.tableCode = ctx.code;
+    var me = stored('ac-me');
+    if (!me || !me.key) { openTable(); return; }
+    rpc('link_open', { p_key: me.key }).then(function (o) {
+      if (!o || !o.dinner || o.dinner.key !== ctx.dinnerKey) { openTable(); return; }
+      ctx.mode = 'link'; ctx.key = me.key; ctx.device = me.device; ctx.recognised = true; ctx.phone = 'this';
+      applyOpen(o); route();
+    }, openTable);
+  }
+
+  var bigW = buildWheel($('bigWheel'));
+  var arrivedW = buildWheel($('arrivedWheel'), 0.5);
+  var closeW = buildWheel($('closeWheel'), 0.4);
+  var doneW = buildWheel($('doneWheel'), 0.5);
+  wheels.push(bigW, arrivedW, closeW, doneW);
+
+  if (!CFG.url || !CFG.key || /YOUR/.test(CFG.url + CFG.key)) { note('Actualize', 'Not set up yet.', 'This page hasn\'t been connected to its database.'); return; }
+  if (ctx.mode === 'link') startLink();
+  else if (ctx.mode === 'table') startTable();
+  else note('Actualize', 'This page needs your link.', 'Open the private link your anchor sent you, or scan the code on the table.');
 })();

@@ -28,7 +28,7 @@ h1,h2,h3,p{margin:0}
 h1{font-weight:800;font-size:clamp(36px,5.4vw,64px);line-height:.98;letter-spacing:-.035em;text-transform:uppercase;color:var(--white);text-wrap:balance}
 h2{font-weight:800;font-size:clamp(24px,3vw,34px);line-height:1.1;letter-spacing:-.025em;color:var(--white);text-wrap:balance}
 h3{font-weight:700;font-size:18px;line-height:1.3;color:var(--white)}
-h1:focus,h2:focus{outline:none}
+h1:focus,h2:focus,h3[tabindex]:focus{outline:none}
 :focus-visible{outline:2px solid var(--cream);outline-offset:3px}
 .wrap{max-width:1200px;margin:0 auto}
 .band{padding-block:clamp(28px,4.2vw,56px);padding-left:max(5vw,16px,env(safe-area-inset-left,0px));padding-right:max(5vw,16px,env(safe-area-inset-right,0px))}
@@ -301,6 +301,47 @@ h1:focus,h2:focus{outline:none}
 .faq span{color:var(--soft)}
 @media(max-width:620px){.faq div{grid-template-columns:minmax(0,1fr);gap:4px}}
 
+/* connection score */
+.score{flex:none;display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border:1px solid var(--line2);font:500 12.5px var(--mono);color:var(--soft);white-space:nowrap}
+.score i{width:8px;height:8px;border-radius:50%;background:var(--faint)}
+.score.good i{background:var(--cream)}.score.watch i{background:#F0C9A0}.score.drift i{background:var(--redtx)}
+.score.drift{border-color:rgba(255,107,97,.5);color:var(--white)}
+.mlist .who{display:grid;grid-template-columns:40px minmax(0,1fr);gap:12px;align-items:center;padding:0;border:0;background:none;color:inherit;text-align:left;cursor:pointer;min-height:44px}
+.mlist .who:hover .nm{text-decoration:underline;text-underline-offset:3px}
+.mlist li{grid-template-columns:minmax(0,1fr) auto}
+.care{list-style:none;margin:12px 0 0;padding:0}
+.care li{border-top:1px solid var(--line)}
+.care button{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:12px;align-items:center;width:100%;padding:10px 0;border:0;background:none;color:inherit;text-align:left;cursor:pointer}
+.care b{display:block;color:var(--white)}
+.care span.why{display:block;font-size:13px;color:var(--soft)}
+.parts{display:grid;gap:10px;margin-top:14px}
+.part{display:grid;grid-template-columns:9.5em minmax(0,1fr) auto;gap:12px;align-items:center;font-size:14px}
+.part span{color:var(--muted)}
+.part em{font-style:normal;font-size:13px;color:var(--soft);text-align:right}
+.part.none span,.part.none em{color:var(--faint)}
+.bigscore{display:flex;align-items:baseline;gap:12px;margin-top:14px}
+.bigscore b{font:500 46px/1 var(--mono);color:var(--white)}
+.bigscore span{font-size:15px;font-weight:700;color:var(--soft)}
+.modal .box.wide{max-width:600px}
+.mhead{display:flex;align-items:center;gap:12px}
+.mhead .av{width:46px;height:46px;font-size:16px}
+.msec{margin-top:22px;padding-top:16px;border-top:1px solid var(--line)}
+.msec h4{margin:0;font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.rowform{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+.rowform .field{margin:0;min-height:44px;max-width:12em}
+.clist{list-style:none;margin:10px 0 0;padding:0}
+.clist li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+.clist li:first-child{border-top:0}
+.clist .rowform{margin:0;flex-wrap:nowrap}
+.clist .rowform .field{width:11em}
+@media (max-width:560px){.clist li{grid-template-columns:minmax(0,1fr)}.clist .rowform{flex-wrap:wrap}}
+.commits{list-style:none;margin:12px 0 0;padding:0}
+.commits li{display:grid;grid-template-columns:minmax(6em,9em) minmax(0,1fr) auto;gap:12px;align-items:baseline;padding:10px 0;border-top:1px solid var(--line)}
+.commits b{color:var(--white)}
+.commits span{color:var(--cream)}
+.commits small{display:block;font-size:13px;color:var(--faint)}
+@media(max-width:560px){.commits li{grid-template-columns:minmax(0,1fr) auto}.commits li b{grid-column:1/-1}.part{grid-template-columns:7.5em minmax(0,1fr) auto}}
+
 /* modals */
 .modal{position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.78)}
 .modal .box{width:100%;max-width:440px;max-height:100%;overflow:auto;padding:22px;background:var(--panel);border:1px solid var(--line2)}
@@ -383,10 +424,11 @@ h1:focus,h2:focus{outline:none}
           <div class="col">
             <div class="insight" id="todo"></div>
             <div class="sendbox" id="linkMessages" hidden></div>
+            <div class="panel" id="careBox"></div>
             <div class="panel" id="crewPanel">
               <div class="phead">
                 <h3>The crew<small id="crewCount"></small></h3>
-                <button class="linkbtn" id="editMen" type="button" aria-pressed="false">Edit the list</button>
+                <div style="display:flex;gap:18px"><button class="linkbtn" id="circleOpen" type="button">Update Circle</button><button class="linkbtn" id="editMen" type="button" aria-pressed="false">Edit the list</button></div>
               </div>
               <div class="legend" aria-hidden="true"><span><i class="lg-u"></i>Used his link</span><span><i class="lg-m"></i>Has a link</span><span><i class="lg-n"></i>No link yet</span></div>
               <ul class="mlist" id="menList"></ul>
@@ -446,6 +488,11 @@ h1:focus,h2:focus{outline:none}
               </div>
             </div>
             <div class="full">
+              <h3 style="margin-top:32px">Commitments</h3>
+              <p class="small" style="margin-top:4px">Made at the close. You see every one so you can follow up.</p>
+              <ul class="commits" id="reportCommits"></ul>
+            </div>
+            <div class="full">
               <h3 style="margin-top:32px">Shared with you</h3>
               <p class="small" style="margin-top:4px">Only what each man chose to share with his anchor. Everyone else counts in the totals above.</p>
               <div id="reportShared"></div>
@@ -461,6 +508,7 @@ h1:focus,h2:focus{outline:none}
           <h2 tabindex="-1">Between dinners</h2>
           <p class="sub">Each man's link asks how his week went, across the same nine areas. A week shows here once three or more men answer, and only as the crew's average.</p>
           <div class="insight calm" id="pulseInsight" style="margin-top:22px" hidden></div>
+          <div class="panel" id="nudgeBox" style="margin-top:16px" hidden></div>
           <div id="pulseBox"></div>
         </div>
       </div>
@@ -484,10 +532,26 @@ h1:focus,h2:focus{outline:none}
           <h2>What you can see</h2>
           <ul class="bul">
             <li>Who checked in, and who stayed to the close.</li>
-            <li>Totals, and the crew's averages once three or more men have answered.</li>
-            <li>A man's own answers, only where he chose to share them with you.</li>
-            <li>Answers a man kept to himself only ever count in the totals.</li>
+            <li>Whether each man did the weekly check-in, never what he said.</li>
+            <li>Every man's commitment and whether he kept it, so you can follow up.</li>
+            <li>His scores and what he brought, only where he chose to share them with you.</li>
+            <li>The crew's averages, once three or more men have answered.</li>
           </ul>
+          <p class="sub" style="margin-top:18px">The men are told this on their first screen, before they answer anything.</p>
+        </div>
+      </div>
+      <div class="band">
+        <div class="wrap">
+          <h2>The connection score</h2>
+          <p class="sub">A quiet way to notice who's drifting, before it's too late to notice. Only you see it, never the men.</p>
+          <div class="faq">
+            <div><b>Dinners, up to 40</b><span>The dinners he came to, out of those held.</span></div>
+            <div><b>Weekly check-in, up to 25</b><span>The weeks he answered, out of the last four since his link was made. A week he came to dinner counts.</span></div>
+            <div><b>Commitments, up to 15</b><span>The ones he kept, out of those he's been asked about.</span></div>
+            <div><b>Circle, up to 20</b><span>When he was last on Circle, from his profile: 20 within a week, 14 within two, 7 within a month. Use Update Circle on the crew list.</span></div>
+            <div><b>What it means</b><span>70 and up is connected, 40 to 69 is worth watching, under 40 is drifting. Anything not known yet is left out, not counted against him.</span></div>
+            <div><b>Coming</b><span>Likes and comments on Circle join the score once Actualize shares Circle's own figures.</span></div>
+          </div>
         </div>
       </div>
       <div class="band">
@@ -561,6 +625,22 @@ h1:focus,h2:focus{outline:none}
   </div>
 </div>
 
+<div class="modal" id="manModal" hidden role="dialog" aria-modal="true" aria-labelledby="manName">
+  <div class="box wide" id="manBox"></div>
+</div>
+
+<div class="modal" id="circleModal" hidden role="dialog" aria-modal="true" aria-labelledby="circleTitle">
+  <div class="box wide">
+    <h3 id="circleTitle">Update Circle</h3>
+    <p class="small" style="margin-top:6px">Open each man's Circle profile and note when he was last on. It feeds his connection score. Only you see it.</p>
+    <ul class="clist" id="circleList"></ul>
+    <div class="acts">
+      <button class="btn" id="circleDone" type="button">Done</button>
+    </div>
+    <p class="status" id="circleStatus" role="status"></p>
+  </div>
+</div>
+
 <div class="modal" id="dateModal" hidden role="dialog" aria-modal="true" aria-labelledby="dateTitle">
   <div class="box">
     <h3 id="dateTitle"></h3>
@@ -582,6 +662,6 @@ h1:focus,h2:focus{outline:none}
 <script src="config.js"></script>
 <script src="vendor/supabase.js"></script>
 <script src="vendor/qrcode.js"></script>
-<script src="crew.js?v=2"></script>
+<script src="crew.js?v=3"></script>
 </body>
 </html>
